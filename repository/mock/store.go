@@ -392,6 +392,71 @@ func (s *Store) FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, 
 	return nodes, edges, paths, true
 }
 
+func (s *Store) GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	nodeByID := make(map[string]*domain.Node)
+	for _, ns := range s.nodes {
+		for _, n := range ns {
+			nodeByID[n.NodeID] = n
+		}
+	}
+	childMap := make(map[string][]string)
+	allEdges := make(map[string]*domain.Edge)
+	for _, es := range s.edges {
+		for _, e := range es {
+			if e.EdgeType == "hierarchical" {
+				childMap[e.SourceNodeID] = append(childMap[e.SourceNodeID], e.TargetNodeID)
+				allEdges[e.EdgeID] = e
+			}
+		}
+	}
+
+	visited := make(map[string]int)
+	queue := []struct {
+		id    string
+		depth int
+	}{{id: rootNodeID, depth: 0}}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if _, seen := visited[cur.id]; seen {
+			continue
+		}
+		visited[cur.id] = cur.depth
+		if cur.depth < maxDepth {
+			for _, child := range childMap[cur.id] {
+				queue = append(queue, struct {
+					id    string
+					depth int
+				}{id: child, depth: cur.depth + 1})
+			}
+		}
+	}
+
+	var nodes []*domain.SubtreeNode
+	for id := range visited {
+		n := nodeByID[id]
+		if n == nil {
+			continue
+		}
+		nodes = append(nodes, &domain.SubtreeNode{
+			Node:        *n,
+			HasChildren: len(childMap[id]) > 0,
+		})
+	}
+	var edges []*domain.Edge
+	for _, e := range allEdges {
+		if _, srcIn := visited[e.SourceNodeID]; srcIn {
+			if _, tgtIn := visited[e.TargetNodeID]; tgtIn {
+				edges = append(edges, e)
+			}
+		}
+	}
+	return nodes, edges, nil
+}
+
 // ─── Node ─────────────────────────────────────────────────────────────────────
 
 func (s *Store) GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool) {

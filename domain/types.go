@@ -140,6 +140,11 @@ type Job struct {
 	Status string `json:"status"`
 }
 
+type SubtreeNode struct {
+	Node
+	HasChildren bool `json:"has_children"`
+}
+
 type GraphPath struct {
 	NodeIDs  []string `json:"node_ids"`
 	HopCount int      `json:"hop_count"`

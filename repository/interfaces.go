@@ -33,6 +33,7 @@ type GraphRepository interface {
 	GetOrCreateGraph(wsID string) (*domain.Graph, error)
 	GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool)
 	FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool)
+	GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error)
 }
 
 type NodeRepository interface {

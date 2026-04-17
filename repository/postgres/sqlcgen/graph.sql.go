@@ -437,3 +437,125 @@ func (q *Queries) UpsertRejectedAlias(ctx context.Context, arg UpsertRejectedAli
 	)
 	return err
 }
+
+const getSubtreeNodes = `-- name: GetSubtreeNodes :many
+WITH RECURSIVE subtree AS (
+  SELECT node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at, 0 AS rel_depth
+  FROM nodes WHERE node_id = $1
+  UNION ALL
+  SELECT n.node_id, n.graph_id, n.label, n.category, n.entity_type, n.description, n.summary_html, n.created_by, n.created_at, s.rel_depth + 1
+  FROM nodes n
+  JOIN edges e ON e.target_node_id = n.node_id AND e.edge_type = 'hierarchical'
+  JOIN subtree s ON s.node_id = e.source_node_id
+  WHERE s.rel_depth < $2
+)
+SELECT node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at,
+  EXISTS(
+    SELECT 1 FROM edges e2
+    WHERE e2.source_node_id = subtree.node_id AND e2.edge_type = 'hierarchical'
+  ) AS has_children
+FROM subtree`
+
+type GetSubtreeNodesParams struct {
+	NodeID   string
+	MaxDepth int32
+}
+
+type GetSubtreeNodesRow struct {
+	NodeID      string
+	GraphID     string
+	Label       string
+	Category    string
+	EntityType  string
+	Description string
+	SummaryHtml string
+	CreatedBy   string
+	CreatedAt   time.Time
+	HasChildren bool
+}
+
+func (q *Queries) GetSubtreeNodes(ctx context.Context, arg GetSubtreeNodesParams) ([]GetSubtreeNodesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getSubtreeNodes, arg.NodeID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetSubtreeNodesRow
+	for rows.Next() {
+		var i GetSubtreeNodesRow
+		if err := rows.Scan(
+			&i.NodeID,
+			&i.GraphID,
+			&i.Label,
+			&i.Category,
+			&i.EntityType,
+			&i.Description,
+			&i.SummaryHtml,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.HasChildren,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSubtreeEdges = `-- name: GetSubtreeEdges :many
+WITH RECURSIVE subtree AS (
+  SELECT node_id, 0 AS rel_depth FROM nodes WHERE node_id = $1
+  UNION ALL
+  SELECT n.node_id, s.rel_depth + 1
+  FROM nodes n
+  JOIN edges e ON e.target_node_id = n.node_id AND e.edge_type = 'hierarchical'
+  JOIN subtree s ON s.node_id = e.source_node_id
+  WHERE s.rel_depth < $2
+)
+SELECT e.edge_id, e.graph_id, e.source_node_id, e.target_node_id, e.edge_type, e.description, e.created_at
+FROM edges e
+JOIN subtree src ON src.node_id = e.source_node_id
+JOIN subtree tgt ON tgt.node_id = e.target_node_id
+WHERE e.edge_type = 'hierarchical'`
+
+type GetSubtreeEdgesParams struct {
+	NodeID   string
+	MaxDepth int32
+}
+
+func (q *Queries) GetSubtreeEdges(ctx context.Context, arg GetSubtreeEdgesParams) ([]Edge, error) {
+	rows, err := q.db.QueryContext(ctx, getSubtreeEdges, arg.NodeID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Edge
+	for rows.Next() {
+		var i Edge
+		if err := rows.Scan(
+			&i.EdgeID,
+			&i.GraphID,
+			&i.SourceNodeID,
+			&i.TargetNodeID,
+			&i.EdgeType,
+			&i.Description,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

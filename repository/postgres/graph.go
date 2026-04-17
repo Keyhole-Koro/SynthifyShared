@@ -106,6 +106,45 @@ func (s *Store) FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, 
 	return nodes, edges, paths, true
 }
 
+func (s *Store) GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error) {
+	ctx := context.Background()
+	nodeRows, err := s.q().GetSubtreeNodes(ctx, sqlcgen.GetSubtreeNodesParams{
+		NodeID:   rootNodeID,
+		MaxDepth: int32(maxDepth),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	var nodes []*domain.SubtreeNode
+	for _, r := range nodeRows {
+		nodes = append(nodes, &domain.SubtreeNode{
+			Node: domain.Node{
+				NodeID:      r.NodeID,
+				GraphID:     r.GraphID,
+				Label:       r.Label,
+				EntityType:  r.EntityType,
+				Description: r.Description,
+				SummaryHTML: r.SummaryHtml,
+				CreatedBy:   r.CreatedBy,
+				CreatedAt:   r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+			},
+			HasChildren: r.HasChildren,
+		})
+	}
+	edgeRows, err := s.q().GetSubtreeEdges(ctx, sqlcgen.GetSubtreeEdgesParams{
+		NodeID:   rootNodeID,
+		MaxDepth: int32(maxDepth),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	var edges []*domain.Edge
+	for _, r := range edgeRows {
+		edges = append(edges, toEdge(r))
+	}
+	return nodes, edges, nil
+}
+
 func (s *Store) listNodesByGraph(graphID string) ([]*domain.Node, error) {
 	rows, err := s.q().ListNodesByGraph(context.Background(), graphID)
 	if err != nil {

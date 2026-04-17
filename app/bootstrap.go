@@ -33,6 +33,7 @@ type Store interface {
 	GetOrCreateGraph(wsID string) (*domain.Graph, error)
 	GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool)
 	FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool)
+	GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error)
 	GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool)
 	CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node
 	CreateStructuredNode(graphID, label, category string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node
