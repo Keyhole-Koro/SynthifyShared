@@ -74,10 +74,12 @@ func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
 	}
 	var workspaces []*domain.Workspace
 	for _, row := range rows {
+		rootNodeID, _ := s.GetWorkspaceRootNodeIDByWorkspace(row.WorkspaceID)
 		workspaces = append(workspaces, &domain.Workspace{
 			WorkspaceID: row.WorkspaceID,
 			AccountID:   row.AccountID,
 			Name:        row.Name,
+			RootNodeID:  rootNodeID,
 			CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
 		})
 	}
@@ -89,7 +91,9 @@ func (s *Store) GetWorkspace(id string) (*domain.Workspace, bool) {
 	if err != nil {
 		return nil, false
 	}
-	return toWorkspace(row), true
+	ws := toWorkspace(row)
+	ws.RootNodeID, _ = s.GetWorkspaceRootNodeIDByWorkspace(id)
+	return ws, true
 }
 
 func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool {
@@ -103,7 +107,17 @@ func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool {
 func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	createdAt := nowTime()
 	wsID := newID()
-	if err := s.q().CreateWorkspace(context.Background(), sqlcgen.CreateWorkspaceParams{
+	graphID := newID()
+	rootNodeID := newID()
+	ctx := context.Background()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil
+	}
+	defer tx.Rollback()
+	qtx := s.q().WithTx(tx)
+
+	if err := qtx.CreateWorkspace(ctx, sqlcgen.CreateWorkspaceParams{
 		WorkspaceID: wsID,
 		AccountID:   accountID,
 		Name:        name,
@@ -111,10 +125,37 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	}); err != nil {
 		return nil
 	}
+	graph, err := qtx.GetOrCreateGraph(ctx, sqlcgen.GetOrCreateGraphParams{
+		GraphID:     graphID,
+		WorkspaceID: wsID,
+		Name:        "default",
+		CreatedAt:   createdAt,
+	})
+	if err != nil {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
+		VALUES ($1, $2, $3, $4, '', $5, '', $6, $7)
+	`, rootNodeID, graph.GraphID, name, "workspace", "Workspace root", "system", createdAt); err != nil {
+		return nil
+	}
+	if err := tx.Commit(); err != nil {
+		return nil
+	}
 	return &domain.Workspace{
 		WorkspaceID: wsID,
 		AccountID:   accountID,
 		Name:        name,
+		RootNodeID:  rootNodeID,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
+}
+
+func (s *Store) GetWorkspaceRootNodeIDByWorkspace(workspaceID string) (string, bool) {
+	row, err := s.q().GetGraphByWorkspace(context.Background(), workspaceID)
+	if err != nil {
+		return "", false
+	}
+	return s.GetWorkspaceRootNodeID(row.GraphID)
 }

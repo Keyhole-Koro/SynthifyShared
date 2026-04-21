@@ -32,6 +32,7 @@ type Store interface {
 	SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error
 	GetOrCreateGraph(wsID string) (*domain.Graph, error)
 	GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool)
+	GetWorkspaceRootNodeID(graphID string) (string, bool)
 	FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool)
 	GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error)
 	GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool)

@@ -20,7 +20,14 @@ func (s *Store) GetOrCreateGraph(wsID string) (*domain.Graph, error) {
 	if err != nil {
 		return nil, err
 	}
-	return toGraph(row), nil
+	graph := toGraph(row)
+	if _, ok := s.GetWorkspaceRootNodeID(graph.GraphID); !ok {
+		ws, err := s.q().GetWorkspace(context.Background(), wsID)
+		if err == nil {
+			_ = s.ensureWorkspaceRootNode(graph.GraphID, ws.Name)
+		}
+	}
+	return graph, nil
 }
 
 func (s *Store) GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool) {
@@ -38,6 +45,37 @@ func (s *Store) GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge
 		return nil, nil, false
 	}
 	return nodes, edges, true
+}
+
+func (s *Store) GetWorkspaceRootNodeID(graphID string) (string, bool) {
+	var nodeID string
+	err := s.db.QueryRowContext(context.Background(), `
+		SELECT n.node_id
+		FROM nodes n
+		LEFT JOIN edges e
+		  ON e.graph_id = n.graph_id
+		 AND e.edge_type = 'hierarchical'
+		 AND e.target_node_id = n.node_id
+		WHERE n.graph_id = $1
+		  AND (
+		    n.category = 'workspace'
+		    OR NOT EXISTS (
+		      SELECT 1
+		      FROM edges e2
+		      WHERE e2.graph_id = n.graph_id
+		        AND e2.edge_type = 'hierarchical'
+		        AND e2.target_node_id = n.node_id
+		    )
+		  )
+		ORDER BY
+		  CASE WHEN n.category = 'workspace' THEN 0 ELSE 1 END,
+		  n.created_at ASC
+		LIMIT 1
+	`, graphID).Scan(&nodeID)
+	if err != nil {
+		return "", false
+	}
+	return nodeID, true
 }
 
 func (s *Store) FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool) {
@@ -167,4 +205,15 @@ func (s *Store) listEdgesByGraph(graphID string) ([]*domain.Edge, error) {
 		edges = append(edges, toEdge(row))
 	}
 	return edges, nil
+}
+
+func (s *Store) ensureWorkspaceRootNode(graphID, workspaceName string) error {
+	if workspaceName == "" {
+		workspaceName = "Workspace"
+	}
+	_, err := s.db.ExecContext(context.Background(), `
+		INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
+		VALUES ($1, $2, $3, 'workspace', '', 'Workspace root', '', 'system', $4)
+	`, newID(), graphID, workspaceName, nowTime())
+	return err
 }

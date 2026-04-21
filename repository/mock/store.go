@@ -141,13 +141,33 @@ func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool {
 func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	wsID := newID()
+	graphID := newID()
+	rootNodeID := newID()
 	ws := &domain.Workspace{
-		WorkspaceID: newID(),
+		WorkspaceID: wsID,
 		AccountID:   accountID,
 		Name:        name,
+		RootNodeID:  rootNodeID,
 		CreatedAt:   now(),
 	}
 	s.workspaces[ws.WorkspaceID] = ws
+	s.graphs[graphID] = &domain.Graph{
+		GraphID:     graphID,
+		WorkspaceID: wsID,
+		Name:        "default",
+		CreatedAt:   ws.CreatedAt,
+		UpdatedAt:   ws.CreatedAt,
+	}
+	s.nodes[graphID] = []*domain.Node{{
+		NodeID:      rootNodeID,
+		GraphID:     graphID,
+		Label:       name,
+		Category:    "workspace",
+		Description: "Workspace root",
+		CreatedBy:   "system",
+		CreatedAt:   ws.CreatedAt,
+	}}
 	return ws
 }
 
@@ -221,9 +241,20 @@ func (s *Store) CreateProcessingJob(docID, graphID, jobType string) *domain.Docu
 
 	// Mock behavior: immediately attach sample nodes and edges to the graph.
 	if graphID != "" {
-		if _, exists := s.nodes[graphID]; !exists {
-			s.nodes[graphID] = cloneSalesNodes(graphID)
-			s.edges[graphID] = cloneSalesEdges(graphID)
+		if !s.hasNonWorkspaceNodesLocked(graphID) {
+			rootID, _ := s.getWorkspaceRootNodeIDLocked(graphID)
+			s.nodes[graphID] = append(s.nodes[graphID], cloneSalesNodes(graphID)...)
+			s.edges[graphID] = append(s.edges[graphID], cloneSalesEdges(graphID)...)
+			if rootID != "" {
+				s.edges[graphID] = append(s.edges[graphID], &domain.Edge{
+					EdgeID:       newID(),
+					GraphID:      graphID,
+					SourceNodeID: rootID,
+					TargetNodeID: "nd_root",
+					EdgeType:     "hierarchical",
+					CreatedAt:    now(),
+				})
+			}
 		}
 	}
 	return job
@@ -321,6 +352,12 @@ func (s *Store) GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge
 		return nil, nil, false
 	}
 	return s.nodes[graphID], s.edges[graphID], true
+}
+
+func (s *Store) GetWorkspaceRootNodeID(graphID string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getWorkspaceRootNodeIDLocked(graphID)
 }
 
 func (s *Store) FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool) {
@@ -612,6 +649,28 @@ func (s *Store) nodeExists(nodeID string) bool {
 			if node.NodeID == nodeID {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func (s *Store) getWorkspaceRootNodeIDLocked(graphID string) (string, bool) {
+	nodes := s.nodes[graphID]
+	for _, node := range nodes {
+		if node.Category == "workspace" {
+			return node.NodeID, true
+		}
+	}
+	if len(nodes) == 0 {
+		return "", false
+	}
+	return nodes[0].NodeID, true
+}
+
+func (s *Store) hasNonWorkspaceNodesLocked(graphID string) bool {
+	for _, node := range s.nodes[graphID] {
+		if node.Category != "workspace" {
+			return true
 		}
 	}
 	return false

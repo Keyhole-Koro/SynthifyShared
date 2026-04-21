@@ -34,6 +34,7 @@ type Workspace struct {
 	WorkspaceID string `json:"workspace_id"`
 	AccountID   string `json:"account_id"`
 	Name        string `json:"name"`
+	RootNodeID  string `json:"root_node_id,omitempty"`
 	CreatedAt   string `json:"created_at"`
 }
 
