@@ -73,7 +73,6 @@ type Node struct {
 	NodeID      string `json:"node_id"`
 	GraphID     string `json:"graph_id"`
 	Label       string `json:"label"`
-	Category    string `json:"category,omitempty"`
 	Level       int    `json:"level,omitempty"`
 	EntityType  string `json:"entity_type,omitempty"`
 	Description string `json:"description"`
@@ -100,6 +99,10 @@ type NodeSource struct {
 	Confidence float64 `json:"confidence,omitempty"`
 }
 
+type NodeEvidence struct {
+	Sources []*NodeSource `json:"sources,omitempty"`
+}
+
 type EdgeSource struct {
 	EdgeID     string  `json:"edge_id"`
 	DocumentID string  `json:"document_id"`
@@ -111,7 +114,6 @@ type EdgeSource struct {
 // GraphNode is the node representation returned by the API.
 type GraphNode struct {
 	ID              string `json:"id"`
-	CanonicalNodeID string `json:"canonical_node_id,omitempty"`
 	Scope           string `json:"scope"` // "document" | "canonical"
 	Label           string `json:"label"`
 	EntityType      string `json:"entity_type,omitempty"`

@@ -135,9 +135,9 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 		return nil
 	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
-		VALUES ($1, $2, $3, $4, '', $5, '', $6, $7)
-	`, rootNodeID, graph.GraphID, name, "workspace", "Workspace root", "system", createdAt); err != nil {
+		INSERT INTO nodes (node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at)
+		VALUES ($1, $2, $3, '', 0, '', $4, '', $5, $6)
+	`, rootNodeID, graph.GraphID, name, "Workspace root", "system", createdAt); err != nil {
 		return nil
 	}
 	if err := tx.Commit(); err != nil {

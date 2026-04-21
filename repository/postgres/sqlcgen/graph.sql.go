@@ -40,14 +40,15 @@ func (q *Queries) CreateEdge(ctx context.Context, arg CreateEdgeParams) error {
 }
 
 const createNode = `-- name: CreateNode :exec
-INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
-VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8)
+INSERT INTO nodes (node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at)
+VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8, $9)
 `
 
 type CreateNodeParams struct {
 	NodeID      string
 	GraphID     string
 	Label       string
+	Level       int32
 	EntityType  string
 	Description string
 	SummaryHtml string
@@ -60,6 +61,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) error {
 		arg.NodeID,
 		arg.GraphID,
 		arg.Label,
+		arg.Level,
 		arg.EntityType,
 		arg.Description,
 		arg.SummaryHtml,
@@ -89,7 +91,7 @@ func (q *Queries) GetGraphByWorkspace(ctx context.Context, workspaceID string) (
 }
 
 const getNode = `-- name: GetNode :one
-SELECT node_id, graph_id, label, entity_type, description, summary_html, created_by, created_at
+SELECT node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at
 FROM nodes
 WHERE node_id = $1
 `
@@ -98,6 +100,8 @@ type GetNodeRow struct {
 	NodeID      string
 	GraphID     string
 	Label       string
+	Category    string
+	Level       int32
 	EntityType  string
 	Description string
 	SummaryHtml string
@@ -112,6 +116,8 @@ func (q *Queries) GetNode(ctx context.Context, nodeID string) (GetNodeRow, error
 		&i.NodeID,
 		&i.GraphID,
 		&i.Label,
+		&i.Category,
+		&i.Level,
 		&i.EntityType,
 		&i.Description,
 		&i.SummaryHtml,
@@ -273,7 +279,7 @@ func (q *Queries) ListNodeSources(ctx context.Context, nodeID string) ([]ListNod
 }
 
 const listNodesByGraph = `-- name: ListNodesByGraph :many
-SELECT node_id, graph_id, label, entity_type, description, summary_html, created_by, created_at
+SELECT node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at
 FROM nodes
 WHERE graph_id = $1
 ORDER BY created_at ASC
@@ -283,6 +289,8 @@ type ListNodesByGraphRow struct {
 	NodeID      string
 	GraphID     string
 	Label       string
+	Category    string
+	Level       int32
 	EntityType  string
 	Description string
 	SummaryHtml string
@@ -303,6 +311,8 @@ func (q *Queries) ListNodesByGraph(ctx context.Context, graphID string) ([]ListN
 			&i.NodeID,
 			&i.GraphID,
 			&i.Label,
+			&i.Category,
+			&i.Level,
 			&i.EntityType,
 			&i.Description,
 			&i.SummaryHtml,
@@ -440,16 +450,16 @@ func (q *Queries) UpsertRejectedAlias(ctx context.Context, arg UpsertRejectedAli
 
 const getSubtreeNodes = `-- name: GetSubtreeNodes :many
 WITH RECURSIVE subtree AS (
-  SELECT node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at, 0 AS rel_depth
+  SELECT node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at, 0 AS rel_depth
   FROM nodes WHERE node_id = $1
   UNION ALL
-  SELECT n.node_id, n.graph_id, n.label, n.category, n.entity_type, n.description, n.summary_html, n.created_by, n.created_at, s.rel_depth + 1
+  SELECT n.node_id, n.graph_id, n.label, n.category, n.level, n.entity_type, n.description, n.summary_html, n.created_by, n.created_at, s.rel_depth + 1
   FROM nodes n
   JOIN edges e ON e.target_node_id = n.node_id AND e.edge_type = 'hierarchical'
   JOIN subtree s ON s.node_id = e.source_node_id
   WHERE s.rel_depth < $2
 )
-SELECT node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at,
+SELECT node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at,
   EXISTS(
     SELECT 1 FROM edges e2
     WHERE e2.source_node_id = subtree.node_id AND e2.edge_type = 'hierarchical'
@@ -466,6 +476,7 @@ type GetSubtreeNodesRow struct {
 	GraphID     string
 	Label       string
 	Category    string
+	Level       int32
 	EntityType  string
 	Description string
 	SummaryHtml string
@@ -488,6 +499,7 @@ func (q *Queries) GetSubtreeNodes(ctx context.Context, arg GetSubtreeNodesParams
 			&i.GraphID,
 			&i.Label,
 			&i.Category,
+			&i.Level,
 			&i.EntityType,
 			&i.Description,
 			&i.SummaryHtml,

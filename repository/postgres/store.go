@@ -55,6 +55,7 @@ func nowTime() time.Time {
 
 func (s *Store) ensureSchema(ctx context.Context) error {
 	statements := []string{
+		`ALTER TABLE nodes ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 0`,
 		`CREATE TABLE IF NOT EXISTS document_chunks (
 			chunk_id TEXT PRIMARY KEY,
 			document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,

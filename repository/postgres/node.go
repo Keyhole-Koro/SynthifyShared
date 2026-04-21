@@ -27,7 +27,7 @@ func (s *Store) GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool) {
 }
 
 func (s *Store) CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node {
-	node := s.CreateStructuredNode(graphID, label, "", 0, "", description, "", createdBy)
+	node := s.CreateStructuredNode(graphID, label, 0, "", description, "", createdBy)
 	if node == nil || parentNodeID == "" {
 		return node
 	}
@@ -37,13 +37,12 @@ func (s *Store) CreateNode(graphID, label, description, parentNodeID, createdBy 
 	return node
 }
 
-func (s *Store) CreateStructuredNode(graphID, label, category string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node {
+func (s *Store) CreateStructuredNode(graphID, label string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node {
 	createdAt := nowTime()
 	node := &domain.Node{
 		NodeID:      newID(),
 		GraphID:     graphID,
 		Label:       label,
-		Category:    category,
 		Level:       level,
 		EntityType:  entityType,
 		Description: description,
@@ -60,9 +59,9 @@ func (s *Store) CreateStructuredNode(graphID, label, category string, level int,
 	ctx := context.Background()
 
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, node.NodeID, node.GraphID, node.Label, node.Category, node.EntityType, node.Description, node.SummaryHTML, node.CreatedBy, createdAt); err != nil {
+		INSERT INTO nodes (node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at)
+		VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8, $9)
+	`, node.NodeID, node.GraphID, node.Label, node.Level, node.EntityType, node.Description, node.SummaryHTML, node.CreatedBy, createdAt); err != nil {
 		return nil
 	}
 	if summaryHTML != "" {

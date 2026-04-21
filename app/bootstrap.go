@@ -37,7 +37,7 @@ type Store interface {
 	GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error)
 	GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool)
 	CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node
-	CreateStructuredNode(graphID, label, category string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node
+	CreateStructuredNode(graphID, label string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node
 	CreateEdge(graphID, sourceNodeID, targetNodeID, edgeType, description string) *domain.Edge
 	UpsertNodeSource(nodeID, documentID, chunkID, sourceText string, confidence float64) error
 	UpsertEdgeSource(edgeID, documentID, chunkID, sourceText string, confidence float64) error

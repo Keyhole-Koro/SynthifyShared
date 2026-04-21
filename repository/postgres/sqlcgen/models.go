@@ -82,6 +82,7 @@ type Node struct {
 	GraphID     string
 	Label       string
 	Category    string
+	Level       int32
 	EntityType  string
 	Description string
 	SummaryHtml string

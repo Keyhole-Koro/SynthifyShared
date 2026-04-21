@@ -163,7 +163,7 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 		NodeID:      rootNodeID,
 		GraphID:     graphID,
 		Label:       name,
-		Category:    "workspace",
+		Level:       0,
 		Description: "Workspace root",
 		CreatedBy:   "system",
 		CreatedAt:   ws.CreatedAt,
@@ -518,7 +518,7 @@ func (s *Store) GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool) {
 }
 
 func (s *Store) CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node {
-	node := s.CreateStructuredNode(graphID, label, "", 0, "", description, "", createdBy)
+	node := s.CreateStructuredNode(graphID, label, 0, "", description, "", createdBy)
 	if node == nil || parentNodeID == "" {
 		return node
 	}
@@ -528,14 +528,13 @@ func (s *Store) CreateNode(graphID, label, description, parentNodeID, createdBy 
 	return node
 }
 
-func (s *Store) CreateStructuredNode(graphID, label, category string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node {
+func (s *Store) CreateStructuredNode(graphID, label string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := &domain.Node{
 		NodeID:      newID(),
 		GraphID:     graphID,
 		Label:       label,
-		Category:    category,
 		Level:       level,
 		EntityType:  entityType,
 		Description: description,
@@ -657,7 +656,7 @@ func (s *Store) nodeExists(nodeID string) bool {
 func (s *Store) getWorkspaceRootNodeIDLocked(graphID string) (string, bool) {
 	nodes := s.nodes[graphID]
 	for _, node := range nodes {
-		if node.Category == "workspace" {
+		if node.Level == 0 && node.CreatedBy == "system" {
 			return node.NodeID, true
 		}
 	}
@@ -669,7 +668,7 @@ func (s *Store) getWorkspaceRootNodeIDLocked(graphID string) (string, bool) {
 
 func (s *Store) hasNonWorkspaceNodesLocked(graphID string) bool {
 	for _, node := range s.nodes[graphID] {
-		if node.Category != "workspace" {
+		if !(node.Level == 0 && node.CreatedBy == "system") {
 			return true
 		}
 	}

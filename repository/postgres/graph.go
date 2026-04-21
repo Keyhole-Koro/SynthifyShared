@@ -58,7 +58,7 @@ func (s *Store) GetWorkspaceRootNodeID(graphID string) (string, bool) {
 		 AND e.target_node_id = n.node_id
 		WHERE n.graph_id = $1
 		  AND (
-		    n.category = 'workspace'
+		    (n.level = 0 AND n.created_by = 'system')
 		    OR NOT EXISTS (
 		      SELECT 1
 		      FROM edges e2
@@ -68,7 +68,7 @@ func (s *Store) GetWorkspaceRootNodeID(graphID string) (string, bool) {
 		    )
 		  )
 		ORDER BY
-		  CASE WHEN n.category = 'workspace' THEN 0 ELSE 1 END,
+		  CASE WHEN n.level = 0 AND n.created_by = 'system' THEN 0 ELSE 1 END,
 		  n.created_at ASC
 		LIMIT 1
 	`, graphID).Scan(&nodeID)
@@ -160,6 +160,7 @@ func (s *Store) GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNo
 				NodeID:      r.NodeID,
 				GraphID:     r.GraphID,
 				Label:       r.Label,
+				Level:       int(r.Level),
 				EntityType:  r.EntityType,
 				Description: r.Description,
 				SummaryHTML: r.SummaryHtml,
@@ -212,8 +213,8 @@ func (s *Store) ensureWorkspaceRootNode(graphID, workspaceName string) error {
 		workspaceName = "Workspace"
 	}
 	_, err := s.db.ExecContext(context.Background(), `
-		INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
-		VALUES ($1, $2, $3, 'workspace', '', 'Workspace root', '', 'system', $4)
+		INSERT INTO nodes (node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at)
+		VALUES ($1, $2, $3, '', 0, '', 'Workspace root', '', 'system', $4)
 	`, newID(), graphID, workspaceName, nowTime())
 	return err
 }
