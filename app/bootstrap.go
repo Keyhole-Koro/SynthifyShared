@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"github.com/Keyhole-Koro/SynthifyShared/config"
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
 	"github.com/Keyhole-Koro/SynthifyShared/repository"
 	"github.com/Keyhole-Koro/SynthifyShared/repository/mock"
@@ -52,7 +52,7 @@ func PublicUploadURLGenerator(base string) repository.UploadURLGenerator {
 }
 
 func InitStore(ctx context.Context, urlGenerator repository.UploadURLGenerator) Store {
-	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+	if dsn := config.LoadStore().DatabaseURL; dsn != "" {
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
 			store, err := postgres.NewStore(ctx, dsn, urlGenerator)
