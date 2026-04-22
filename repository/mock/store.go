@@ -3,6 +3,7 @@ package mock
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,21 +14,23 @@ import (
 
 // Store is an in-memory mock store that holds all data.
 type Store struct {
-	mu                 sync.RWMutex
-	accounts           map[string]*domain.Account               // account_id → account
-	accountUsers       map[string][]string                      // account_id → []user_id
-	userAccount        map[string]string                        // user_id → account_id
-	workspaces         map[string]*domain.Workspace             // workspace_id → workspace
-	documents          map[string]*domain.Document              // document_id → document
-	documentChunks     map[string][]*domain.DocumentChunk       // document_id → chunks
-	jobs               map[string]*domain.DocumentProcessingJob // job_id → job
-	jobCapabilities    map[string]*domain.JobCapability         // job_id → capability
-	jobMutationLogs    map[string][]*domain.JobMutationLog      // job_id → mutation logs
-	graphs             map[string]*domain.Graph                 // workspace_id → graph
-	nodes              map[string][]*domain.Node                // graph_id → nodes
-	edges              map[string][]*domain.Edge                // graph_id → edges
-	aliases            map[string]string                        // alias node id -> canonical node id
-	uploadURLGenerator repository.UploadURLGenerator
+	mu                  sync.RWMutex
+	accounts            map[string]*domain.Account               // account_id → account
+	accountUsers        map[string][]string                      // account_id → []user_id
+	userAccount         map[string]string                        // user_id → account_id
+	workspaces          map[string]*domain.Workspace             // workspace_id → workspace
+	documents           map[string]*domain.Document              // document_id → document
+	documentChunks      map[string][]*domain.DocumentChunk       // document_id → chunks
+	jobs                map[string]*domain.DocumentProcessingJob // job_id → job
+	jobCapabilities     map[string]*domain.JobCapability         // job_id → capability
+	jobExecutionPlans   map[string]*domain.JobExecutionPlan      // job_id → plan
+	jobMutationLogs     map[string][]*domain.JobMutationLog      // job_id → mutation logs
+	jobApprovalRequests map[string][]*domain.JobApprovalRequest  // job_id → approval requests
+	graphs              map[string]*domain.Graph                 // workspace_id → graph
+	nodes               map[string][]*domain.Node                // graph_id → nodes
+	edges               map[string][]*domain.Edge                // graph_id → edges
+	aliases             map[string]string                        // alias node id -> canonical node id
+	uploadURLGenerator  repository.UploadURLGenerator
 }
 
 func NewStore(uploadURLGenerator ...repository.UploadURLGenerator) *Store {
@@ -40,20 +43,22 @@ func NewStore(uploadURLGenerator ...repository.UploadURLGenerator) *Store {
 		}
 	}
 	s := &Store{
-		accounts:           make(map[string]*domain.Account),
-		accountUsers:       make(map[string][]string),
-		userAccount:        make(map[string]string),
-		workspaces:         make(map[string]*domain.Workspace),
-		documents:          make(map[string]*domain.Document),
-		documentChunks:     make(map[string][]*domain.DocumentChunk),
-		jobs:               make(map[string]*domain.DocumentProcessingJob),
-		jobCapabilities:    make(map[string]*domain.JobCapability),
-		jobMutationLogs:    make(map[string][]*domain.JobMutationLog),
-		graphs:             make(map[string]*domain.Graph),
-		nodes:              make(map[string][]*domain.Node),
-		edges:              make(map[string][]*domain.Edge),
-		aliases:            make(map[string]string),
-		uploadURLGenerator: generator,
+		accounts:            make(map[string]*domain.Account),
+		accountUsers:        make(map[string][]string),
+		userAccount:         make(map[string]string),
+		workspaces:          make(map[string]*domain.Workspace),
+		documents:           make(map[string]*domain.Document),
+		documentChunks:      make(map[string][]*domain.DocumentChunk),
+		jobs:                make(map[string]*domain.DocumentProcessingJob),
+		jobCapabilities:     make(map[string]*domain.JobCapability),
+		jobExecutionPlans:   make(map[string]*domain.JobExecutionPlan),
+		jobMutationLogs:     make(map[string][]*domain.JobMutationLog),
+		jobApprovalRequests: make(map[string][]*domain.JobApprovalRequest),
+		graphs:              make(map[string]*domain.Graph),
+		nodes:               make(map[string][]*domain.Node),
+		edges:               make(map[string][]*domain.Edge),
+		aliases:             make(map[string]string),
+		uploadURLGenerator:  generator,
 	}
 	return s
 }
@@ -237,6 +242,184 @@ func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
 	return capability, ok
 }
 
+func (s *Store) GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	job, ok := s.jobs[jobID]
+	return job, ok
+}
+
+func (s *Store) GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	plan, ok := s.jobExecutionPlans[jobID]
+	return plan, ok
+}
+
+func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.jobs[jobID]; !ok || plan == nil {
+		return false
+	}
+	if strings.TrimSpace(plan.PlanID) == "" {
+		plan.PlanID = "plan_" + jobID
+	}
+	if strings.TrimSpace(plan.Status) == "" {
+		plan.Status = "draft"
+	}
+	plan.JobID = jobID
+	if plan.CreatedAt == "" {
+		plan.CreatedAt = now()
+	}
+	plan.UpdatedAt = now()
+	s.jobExecutionPlans[jobID] = plan
+	job := s.jobs[jobID]
+	job.ExecutionPlanID = plan.PlanID
+	job.PlanStatus = plan.Status
+	job.UpdatedAt = plan.UpdatedAt
+	return true
+}
+
+func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return nil, false
+	}
+	plan := s.jobExecutionPlans[jobID]
+	result := &domain.JobEvaluationResult{
+		JobID:         job.JobID,
+		Passed:        job.Status == "completed" && job.EvaluationStatus != "failed",
+		Status:        job.EvaluationStatus,
+		MutationCount: int32(len(s.jobMutationLogs[jobID])),
+	}
+	if plan != nil {
+		result.PlanID = plan.PlanID
+	}
+	if result.Passed {
+		result.Summary = fmt.Sprintf("job completed with %d graph mutations", result.MutationCount)
+		result.Score = 100
+		if result.MutationCount == 0 {
+			result.Findings = []string{"job completed without any recorded graph mutations"}
+			result.Score = 70
+		}
+	} else {
+		result.Summary = firstNonEmpty(job.ErrorMessage, "job has not reached a passing evaluation state")
+		result.Score = 0
+		if job.ErrorMessage != "" {
+			result.Findings = []string{job.ErrorMessage}
+		} else {
+			result.Findings = []string{"job status is not completed"}
+		}
+	}
+	if result.Status == "" {
+		if result.Passed {
+			result.Status = "passed"
+		} else {
+			result.Status = "failed"
+		}
+	}
+	return result, true
+}
+
+func (s *Store) ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]*domain.JobApprovalRequest(nil), s.jobApprovalRequests[jobID]...), true
+}
+
+func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return nil, false
+	}
+	plan, ok := s.jobExecutionPlans[jobID]
+	if !ok {
+		return nil, false
+	}
+	for _, req := range s.jobApprovalRequests[jobID] {
+		if req.Status == "pending" {
+			return req, true
+		}
+	}
+	req := &domain.JobApprovalRequest{
+		ApprovalID:          "apr_" + newID(),
+		JobID:               jobID,
+		PlanID:              plan.PlanID,
+		Status:              "pending",
+		RequestedOperations: []domain.JobOperation{domain.JobOperationEmitPlan, domain.JobOperationEmitEval},
+		Reason:              firstNonEmpty(reason, "approval required before execution"),
+		RiskTier:            plan.HighestRiskTier(),
+		RequestedBy:         firstNonEmpty(requestedBy, "system"),
+		RequestedAt:         now(),
+	}
+	s.jobApprovalRequests[jobID] = append([]*domain.JobApprovalRequest{req}, s.jobApprovalRequests[jobID]...)
+	plan.Status = "pending_approval"
+	plan.UpdatedAt = now()
+	job.PlanStatus = "pending_approval"
+	job.UpdatedAt = now()
+	return req, true
+}
+
+func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return false
+	}
+	plan, ok := s.jobExecutionPlans[jobID]
+	if !ok {
+		return false
+	}
+	for _, req := range s.jobApprovalRequests[jobID] {
+		if req.ApprovalID == approvalID {
+			req.Status = "approved"
+			req.ReviewedBy = firstNonEmpty(reviewedBy, "reviewer")
+			req.ReviewedAt = now()
+			plan.Status = "approved"
+			plan.UpdatedAt = now()
+			job.PlanStatus = "approved"
+			job.UpdatedAt = now()
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return false
+	}
+	plan, ok := s.jobExecutionPlans[jobID]
+	if !ok {
+		return false
+	}
+	for _, req := range s.jobApprovalRequests[jobID] {
+		if req.ApprovalID == approvalID {
+			req.Status = "rejected"
+			req.ReviewedBy = firstNonEmpty(reviewedBy, "reviewer")
+			req.ReviewedAt = now()
+			if strings.TrimSpace(reason) != "" {
+				req.Reason = strings.TrimSpace(reason)
+			}
+			plan.Status = "rejected"
+			plan.UpdatedAt = now()
+			job.PlanStatus = "rejected"
+			job.UpdatedAt = now()
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Store) CreateProcessingJob(docID, graphID, jobType string) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -263,6 +446,16 @@ func (s *Store) CreateProcessingJob(docID, graphID, jobType string) *domain.Docu
 	}
 	s.jobs[job.JobID] = job
 	s.jobCapabilities[job.JobID] = capability
+	s.jobExecutionPlans[job.JobID] = &domain.JobExecutionPlan{
+		PlanID:    job.ExecutionPlanID,
+		JobID:     job.JobID,
+		Status:    "approved",
+		Summary:   "default document processing pipeline",
+		PlanJSON:  `{"summary":"default document processing pipeline","steps":[{"title":"document_pipeline","risk_tier":"tier_1"}]}`,
+		CreatedBy: "planner",
+		CreatedAt: job.CreatedAt,
+		UpdatedAt: job.UpdatedAt,
+	}
 
 	// Mock behavior: immediately attach sample nodes and edges to the graph.
 	if graphID != "" {
@@ -824,4 +1017,13 @@ func contains(ids []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

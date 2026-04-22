@@ -55,12 +55,12 @@ const (
 
 // MonitoringServiceClient is a client for the synthify.graph.v1.MonitoringService service.
 type MonitoringServiceClient interface {
-	GetPipelineStats(context.Context, *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.PipelineMetrics], error)
-	GetExtractionStats(context.Context, *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.ExtractionMetrics], error)
-	GetEvaluationTrend(context.Context, *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.EvaluationMetrics], error)
-	ListFailedDocuments(context.Context, *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ErrorMetrics], error)
-	GetNormalizationStats(context.Context, *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.NormalizationMetrics], error)
-	GetAliasStats(context.Context, *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.AliasMetrics], error)
+	GetPipelineStats(context.Context, *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.GetPipelineStatsResponse], error)
+	GetExtractionStats(context.Context, *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.GetExtractionStatsResponse], error)
+	GetEvaluationTrend(context.Context, *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.GetEvaluationTrendResponse], error)
+	ListFailedDocuments(context.Context, *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ListFailedDocumentsResponse], error)
+	GetNormalizationStats(context.Context, *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.GetNormalizationStatsResponse], error)
+	GetAliasStats(context.Context, *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.GetAliasStatsResponse], error)
 }
 
 // NewMonitoringServiceClient constructs a client for the synthify.graph.v1.MonitoringService
@@ -74,37 +74,37 @@ func NewMonitoringServiceClient(httpClient connect.HTTPClient, baseURL string, o
 	baseURL = strings.TrimRight(baseURL, "/")
 	monitoringServiceMethods := v1.File_synthify_graph_v1_monitoring_proto.Services().ByName("MonitoringService").Methods()
 	return &monitoringServiceClient{
-		getPipelineStats: connect.NewClient[v1.GetPipelineStatsRequest, v1.PipelineMetrics](
+		getPipelineStats: connect.NewClient[v1.GetPipelineStatsRequest, v1.GetPipelineStatsResponse](
 			httpClient,
 			baseURL+MonitoringServiceGetPipelineStatsProcedure,
 			connect.WithSchema(monitoringServiceMethods.ByName("GetPipelineStats")),
 			connect.WithClientOptions(opts...),
 		),
-		getExtractionStats: connect.NewClient[v1.GetExtractionStatsRequest, v1.ExtractionMetrics](
+		getExtractionStats: connect.NewClient[v1.GetExtractionStatsRequest, v1.GetExtractionStatsResponse](
 			httpClient,
 			baseURL+MonitoringServiceGetExtractionStatsProcedure,
 			connect.WithSchema(monitoringServiceMethods.ByName("GetExtractionStats")),
 			connect.WithClientOptions(opts...),
 		),
-		getEvaluationTrend: connect.NewClient[v1.GetEvaluationTrendRequest, v1.EvaluationMetrics](
+		getEvaluationTrend: connect.NewClient[v1.GetEvaluationTrendRequest, v1.GetEvaluationTrendResponse](
 			httpClient,
 			baseURL+MonitoringServiceGetEvaluationTrendProcedure,
 			connect.WithSchema(monitoringServiceMethods.ByName("GetEvaluationTrend")),
 			connect.WithClientOptions(opts...),
 		),
-		listFailedDocuments: connect.NewClient[v1.ListFailedDocumentsRequest, v1.ErrorMetrics](
+		listFailedDocuments: connect.NewClient[v1.ListFailedDocumentsRequest, v1.ListFailedDocumentsResponse](
 			httpClient,
 			baseURL+MonitoringServiceListFailedDocumentsProcedure,
 			connect.WithSchema(monitoringServiceMethods.ByName("ListFailedDocuments")),
 			connect.WithClientOptions(opts...),
 		),
-		getNormalizationStats: connect.NewClient[v1.GetNormalizationStatsRequest, v1.NormalizationMetrics](
+		getNormalizationStats: connect.NewClient[v1.GetNormalizationStatsRequest, v1.GetNormalizationStatsResponse](
 			httpClient,
 			baseURL+MonitoringServiceGetNormalizationStatsProcedure,
 			connect.WithSchema(monitoringServiceMethods.ByName("GetNormalizationStats")),
 			connect.WithClientOptions(opts...),
 		),
-		getAliasStats: connect.NewClient[v1.GetAliasStatsRequest, v1.AliasMetrics](
+		getAliasStats: connect.NewClient[v1.GetAliasStatsRequest, v1.GetAliasStatsResponse](
 			httpClient,
 			baseURL+MonitoringServiceGetAliasStatsProcedure,
 			connect.WithSchema(monitoringServiceMethods.ByName("GetAliasStats")),
@@ -115,52 +115,52 @@ func NewMonitoringServiceClient(httpClient connect.HTTPClient, baseURL string, o
 
 // monitoringServiceClient implements MonitoringServiceClient.
 type monitoringServiceClient struct {
-	getPipelineStats      *connect.Client[v1.GetPipelineStatsRequest, v1.PipelineMetrics]
-	getExtractionStats    *connect.Client[v1.GetExtractionStatsRequest, v1.ExtractionMetrics]
-	getEvaluationTrend    *connect.Client[v1.GetEvaluationTrendRequest, v1.EvaluationMetrics]
-	listFailedDocuments   *connect.Client[v1.ListFailedDocumentsRequest, v1.ErrorMetrics]
-	getNormalizationStats *connect.Client[v1.GetNormalizationStatsRequest, v1.NormalizationMetrics]
-	getAliasStats         *connect.Client[v1.GetAliasStatsRequest, v1.AliasMetrics]
+	getPipelineStats      *connect.Client[v1.GetPipelineStatsRequest, v1.GetPipelineStatsResponse]
+	getExtractionStats    *connect.Client[v1.GetExtractionStatsRequest, v1.GetExtractionStatsResponse]
+	getEvaluationTrend    *connect.Client[v1.GetEvaluationTrendRequest, v1.GetEvaluationTrendResponse]
+	listFailedDocuments   *connect.Client[v1.ListFailedDocumentsRequest, v1.ListFailedDocumentsResponse]
+	getNormalizationStats *connect.Client[v1.GetNormalizationStatsRequest, v1.GetNormalizationStatsResponse]
+	getAliasStats         *connect.Client[v1.GetAliasStatsRequest, v1.GetAliasStatsResponse]
 }
 
 // GetPipelineStats calls synthify.graph.v1.MonitoringService.GetPipelineStats.
-func (c *monitoringServiceClient) GetPipelineStats(ctx context.Context, req *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.PipelineMetrics], error) {
+func (c *monitoringServiceClient) GetPipelineStats(ctx context.Context, req *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.GetPipelineStatsResponse], error) {
 	return c.getPipelineStats.CallUnary(ctx, req)
 }
 
 // GetExtractionStats calls synthify.graph.v1.MonitoringService.GetExtractionStats.
-func (c *monitoringServiceClient) GetExtractionStats(ctx context.Context, req *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.ExtractionMetrics], error) {
+func (c *monitoringServiceClient) GetExtractionStats(ctx context.Context, req *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.GetExtractionStatsResponse], error) {
 	return c.getExtractionStats.CallUnary(ctx, req)
 }
 
 // GetEvaluationTrend calls synthify.graph.v1.MonitoringService.GetEvaluationTrend.
-func (c *monitoringServiceClient) GetEvaluationTrend(ctx context.Context, req *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.EvaluationMetrics], error) {
+func (c *monitoringServiceClient) GetEvaluationTrend(ctx context.Context, req *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.GetEvaluationTrendResponse], error) {
 	return c.getEvaluationTrend.CallUnary(ctx, req)
 }
 
 // ListFailedDocuments calls synthify.graph.v1.MonitoringService.ListFailedDocuments.
-func (c *monitoringServiceClient) ListFailedDocuments(ctx context.Context, req *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ErrorMetrics], error) {
+func (c *monitoringServiceClient) ListFailedDocuments(ctx context.Context, req *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ListFailedDocumentsResponse], error) {
 	return c.listFailedDocuments.CallUnary(ctx, req)
 }
 
 // GetNormalizationStats calls synthify.graph.v1.MonitoringService.GetNormalizationStats.
-func (c *monitoringServiceClient) GetNormalizationStats(ctx context.Context, req *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.NormalizationMetrics], error) {
+func (c *monitoringServiceClient) GetNormalizationStats(ctx context.Context, req *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.GetNormalizationStatsResponse], error) {
 	return c.getNormalizationStats.CallUnary(ctx, req)
 }
 
 // GetAliasStats calls synthify.graph.v1.MonitoringService.GetAliasStats.
-func (c *monitoringServiceClient) GetAliasStats(ctx context.Context, req *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.AliasMetrics], error) {
+func (c *monitoringServiceClient) GetAliasStats(ctx context.Context, req *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.GetAliasStatsResponse], error) {
 	return c.getAliasStats.CallUnary(ctx, req)
 }
 
 // MonitoringServiceHandler is an implementation of the synthify.graph.v1.MonitoringService service.
 type MonitoringServiceHandler interface {
-	GetPipelineStats(context.Context, *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.PipelineMetrics], error)
-	GetExtractionStats(context.Context, *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.ExtractionMetrics], error)
-	GetEvaluationTrend(context.Context, *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.EvaluationMetrics], error)
-	ListFailedDocuments(context.Context, *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ErrorMetrics], error)
-	GetNormalizationStats(context.Context, *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.NormalizationMetrics], error)
-	GetAliasStats(context.Context, *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.AliasMetrics], error)
+	GetPipelineStats(context.Context, *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.GetPipelineStatsResponse], error)
+	GetExtractionStats(context.Context, *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.GetExtractionStatsResponse], error)
+	GetEvaluationTrend(context.Context, *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.GetEvaluationTrendResponse], error)
+	ListFailedDocuments(context.Context, *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ListFailedDocumentsResponse], error)
+	GetNormalizationStats(context.Context, *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.GetNormalizationStatsResponse], error)
+	GetAliasStats(context.Context, *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.GetAliasStatsResponse], error)
 }
 
 // NewMonitoringServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -229,26 +229,26 @@ func NewMonitoringServiceHandler(svc MonitoringServiceHandler, opts ...connect.H
 // UnimplementedMonitoringServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedMonitoringServiceHandler struct{}
 
-func (UnimplementedMonitoringServiceHandler) GetPipelineStats(context.Context, *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.PipelineMetrics], error) {
+func (UnimplementedMonitoringServiceHandler) GetPipelineStats(context.Context, *connect.Request[v1.GetPipelineStatsRequest]) (*connect.Response[v1.GetPipelineStatsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.MonitoringService.GetPipelineStats is not implemented"))
 }
 
-func (UnimplementedMonitoringServiceHandler) GetExtractionStats(context.Context, *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.ExtractionMetrics], error) {
+func (UnimplementedMonitoringServiceHandler) GetExtractionStats(context.Context, *connect.Request[v1.GetExtractionStatsRequest]) (*connect.Response[v1.GetExtractionStatsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.MonitoringService.GetExtractionStats is not implemented"))
 }
 
-func (UnimplementedMonitoringServiceHandler) GetEvaluationTrend(context.Context, *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.EvaluationMetrics], error) {
+func (UnimplementedMonitoringServiceHandler) GetEvaluationTrend(context.Context, *connect.Request[v1.GetEvaluationTrendRequest]) (*connect.Response[v1.GetEvaluationTrendResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.MonitoringService.GetEvaluationTrend is not implemented"))
 }
 
-func (UnimplementedMonitoringServiceHandler) ListFailedDocuments(context.Context, *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ErrorMetrics], error) {
+func (UnimplementedMonitoringServiceHandler) ListFailedDocuments(context.Context, *connect.Request[v1.ListFailedDocumentsRequest]) (*connect.Response[v1.ListFailedDocumentsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.MonitoringService.ListFailedDocuments is not implemented"))
 }
 
-func (UnimplementedMonitoringServiceHandler) GetNormalizationStats(context.Context, *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.NormalizationMetrics], error) {
+func (UnimplementedMonitoringServiceHandler) GetNormalizationStats(context.Context, *connect.Request[v1.GetNormalizationStatsRequest]) (*connect.Response[v1.GetNormalizationStatsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.MonitoringService.GetNormalizationStats is not implemented"))
 }
 
-func (UnimplementedMonitoringServiceHandler) GetAliasStats(context.Context, *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.AliasMetrics], error) {
+func (UnimplementedMonitoringServiceHandler) GetAliasStats(context.Context, *connect.Request[v1.GetAliasStatsRequest]) (*connect.Response[v1.GetAliasStatsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.MonitoringService.GetAliasStats is not implemented"))
 }

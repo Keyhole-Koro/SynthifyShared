@@ -24,7 +24,15 @@ type Store interface {
 	GetDocument(id string) (*domain.Document, bool)
 	CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
 	GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool)
+	GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool)
 	GetJobCapability(jobID string) (*domain.JobCapability, bool)
+	GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool)
+	UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool
+	EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool)
+	ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool)
+	RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
+	ApproveJobApproval(jobID, approvalID, reviewedBy string) bool
+	RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool
 	CreateProcessingJob(docID, graphID, jobType string) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(jobID string) bool
 	UpdateProcessingJobStage(jobID, stage string) bool

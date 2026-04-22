@@ -35,11 +35,31 @@ const (
 const (
 	// JobServiceGetJobStatusProcedure is the fully-qualified name of the JobService's GetJobStatus RPC.
 	JobServiceGetJobStatusProcedure = "/synthify.graph.v1.JobService/GetJobStatus"
+	// JobServiceGetJobExecutionPlanProcedure is the fully-qualified name of the JobService's
+	// GetJobExecutionPlan RPC.
+	JobServiceGetJobExecutionPlanProcedure = "/synthify.graph.v1.JobService/GetJobExecutionPlan"
+	// JobServiceListJobApprovalRequestsProcedure is the fully-qualified name of the JobService's
+	// ListJobApprovalRequests RPC.
+	JobServiceListJobApprovalRequestsProcedure = "/synthify.graph.v1.JobService/ListJobApprovalRequests"
+	// JobServiceRequestJobApprovalProcedure is the fully-qualified name of the JobService's
+	// RequestJobApproval RPC.
+	JobServiceRequestJobApprovalProcedure = "/synthify.graph.v1.JobService/RequestJobApproval"
+	// JobServiceApproveJobApprovalProcedure is the fully-qualified name of the JobService's
+	// ApproveJobApproval RPC.
+	JobServiceApproveJobApprovalProcedure = "/synthify.graph.v1.JobService/ApproveJobApproval"
+	// JobServiceRejectJobApprovalProcedure is the fully-qualified name of the JobService's
+	// RejectJobApproval RPC.
+	JobServiceRejectJobApprovalProcedure = "/synthify.graph.v1.JobService/RejectJobApproval"
 )
 
 // JobServiceClient is a client for the synthify.graph.v1.JobService service.
 type JobServiceClient interface {
 	GetJobStatus(context.Context, *connect.Request[v1.GetJobStatusRequest]) (*connect.Response[v1.GetJobStatusResponse], error)
+	GetJobExecutionPlan(context.Context, *connect.Request[v1.GetJobExecutionPlanRequest]) (*connect.Response[v1.GetJobExecutionPlanResponse], error)
+	ListJobApprovalRequests(context.Context, *connect.Request[v1.ListJobApprovalRequestsRequest]) (*connect.Response[v1.ListJobApprovalRequestsResponse], error)
+	RequestJobApproval(context.Context, *connect.Request[v1.RequestJobApprovalRequest]) (*connect.Response[v1.RequestJobApprovalResponse], error)
+	ApproveJobApproval(context.Context, *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error)
+	RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error)
 }
 
 // NewJobServiceClient constructs a client for the synthify.graph.v1.JobService service. By default,
@@ -59,12 +79,47 @@ func NewJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(jobServiceMethods.ByName("GetJobStatus")),
 			connect.WithClientOptions(opts...),
 		),
+		getJobExecutionPlan: connect.NewClient[v1.GetJobExecutionPlanRequest, v1.GetJobExecutionPlanResponse](
+			httpClient,
+			baseURL+JobServiceGetJobExecutionPlanProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("GetJobExecutionPlan")),
+			connect.WithClientOptions(opts...),
+		),
+		listJobApprovalRequests: connect.NewClient[v1.ListJobApprovalRequestsRequest, v1.ListJobApprovalRequestsResponse](
+			httpClient,
+			baseURL+JobServiceListJobApprovalRequestsProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("ListJobApprovalRequests")),
+			connect.WithClientOptions(opts...),
+		),
+		requestJobApproval: connect.NewClient[v1.RequestJobApprovalRequest, v1.RequestJobApprovalResponse](
+			httpClient,
+			baseURL+JobServiceRequestJobApprovalProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("RequestJobApproval")),
+			connect.WithClientOptions(opts...),
+		),
+		approveJobApproval: connect.NewClient[v1.ApproveJobApprovalRequest, v1.ApproveJobApprovalResponse](
+			httpClient,
+			baseURL+JobServiceApproveJobApprovalProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("ApproveJobApproval")),
+			connect.WithClientOptions(opts...),
+		),
+		rejectJobApproval: connect.NewClient[v1.RejectJobApprovalRequest, v1.RejectJobApprovalResponse](
+			httpClient,
+			baseURL+JobServiceRejectJobApprovalProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("RejectJobApproval")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // jobServiceClient implements JobServiceClient.
 type jobServiceClient struct {
-	getJobStatus *connect.Client[v1.GetJobStatusRequest, v1.GetJobStatusResponse]
+	getJobStatus            *connect.Client[v1.GetJobStatusRequest, v1.GetJobStatusResponse]
+	getJobExecutionPlan     *connect.Client[v1.GetJobExecutionPlanRequest, v1.GetJobExecutionPlanResponse]
+	listJobApprovalRequests *connect.Client[v1.ListJobApprovalRequestsRequest, v1.ListJobApprovalRequestsResponse]
+	requestJobApproval      *connect.Client[v1.RequestJobApprovalRequest, v1.RequestJobApprovalResponse]
+	approveJobApproval      *connect.Client[v1.ApproveJobApprovalRequest, v1.ApproveJobApprovalResponse]
+	rejectJobApproval       *connect.Client[v1.RejectJobApprovalRequest, v1.RejectJobApprovalResponse]
 }
 
 // GetJobStatus calls synthify.graph.v1.JobService.GetJobStatus.
@@ -72,9 +127,39 @@ func (c *jobServiceClient) GetJobStatus(ctx context.Context, req *connect.Reques
 	return c.getJobStatus.CallUnary(ctx, req)
 }
 
+// GetJobExecutionPlan calls synthify.graph.v1.JobService.GetJobExecutionPlan.
+func (c *jobServiceClient) GetJobExecutionPlan(ctx context.Context, req *connect.Request[v1.GetJobExecutionPlanRequest]) (*connect.Response[v1.GetJobExecutionPlanResponse], error) {
+	return c.getJobExecutionPlan.CallUnary(ctx, req)
+}
+
+// ListJobApprovalRequests calls synthify.graph.v1.JobService.ListJobApprovalRequests.
+func (c *jobServiceClient) ListJobApprovalRequests(ctx context.Context, req *connect.Request[v1.ListJobApprovalRequestsRequest]) (*connect.Response[v1.ListJobApprovalRequestsResponse], error) {
+	return c.listJobApprovalRequests.CallUnary(ctx, req)
+}
+
+// RequestJobApproval calls synthify.graph.v1.JobService.RequestJobApproval.
+func (c *jobServiceClient) RequestJobApproval(ctx context.Context, req *connect.Request[v1.RequestJobApprovalRequest]) (*connect.Response[v1.RequestJobApprovalResponse], error) {
+	return c.requestJobApproval.CallUnary(ctx, req)
+}
+
+// ApproveJobApproval calls synthify.graph.v1.JobService.ApproveJobApproval.
+func (c *jobServiceClient) ApproveJobApproval(ctx context.Context, req *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error) {
+	return c.approveJobApproval.CallUnary(ctx, req)
+}
+
+// RejectJobApproval calls synthify.graph.v1.JobService.RejectJobApproval.
+func (c *jobServiceClient) RejectJobApproval(ctx context.Context, req *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error) {
+	return c.rejectJobApproval.CallUnary(ctx, req)
+}
+
 // JobServiceHandler is an implementation of the synthify.graph.v1.JobService service.
 type JobServiceHandler interface {
 	GetJobStatus(context.Context, *connect.Request[v1.GetJobStatusRequest]) (*connect.Response[v1.GetJobStatusResponse], error)
+	GetJobExecutionPlan(context.Context, *connect.Request[v1.GetJobExecutionPlanRequest]) (*connect.Response[v1.GetJobExecutionPlanResponse], error)
+	ListJobApprovalRequests(context.Context, *connect.Request[v1.ListJobApprovalRequestsRequest]) (*connect.Response[v1.ListJobApprovalRequestsResponse], error)
+	RequestJobApproval(context.Context, *connect.Request[v1.RequestJobApprovalRequest]) (*connect.Response[v1.RequestJobApprovalResponse], error)
+	ApproveJobApproval(context.Context, *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error)
+	RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error)
 }
 
 // NewJobServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -90,10 +175,50 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(jobServiceMethods.ByName("GetJobStatus")),
 		connect.WithHandlerOptions(opts...),
 	)
+	jobServiceGetJobExecutionPlanHandler := connect.NewUnaryHandler(
+		JobServiceGetJobExecutionPlanProcedure,
+		svc.GetJobExecutionPlan,
+		connect.WithSchema(jobServiceMethods.ByName("GetJobExecutionPlan")),
+		connect.WithHandlerOptions(opts...),
+	)
+	jobServiceListJobApprovalRequestsHandler := connect.NewUnaryHandler(
+		JobServiceListJobApprovalRequestsProcedure,
+		svc.ListJobApprovalRequests,
+		connect.WithSchema(jobServiceMethods.ByName("ListJobApprovalRequests")),
+		connect.WithHandlerOptions(opts...),
+	)
+	jobServiceRequestJobApprovalHandler := connect.NewUnaryHandler(
+		JobServiceRequestJobApprovalProcedure,
+		svc.RequestJobApproval,
+		connect.WithSchema(jobServiceMethods.ByName("RequestJobApproval")),
+		connect.WithHandlerOptions(opts...),
+	)
+	jobServiceApproveJobApprovalHandler := connect.NewUnaryHandler(
+		JobServiceApproveJobApprovalProcedure,
+		svc.ApproveJobApproval,
+		connect.WithSchema(jobServiceMethods.ByName("ApproveJobApproval")),
+		connect.WithHandlerOptions(opts...),
+	)
+	jobServiceRejectJobApprovalHandler := connect.NewUnaryHandler(
+		JobServiceRejectJobApprovalProcedure,
+		svc.RejectJobApproval,
+		connect.WithSchema(jobServiceMethods.ByName("RejectJobApproval")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.graph.v1.JobService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case JobServiceGetJobStatusProcedure:
 			jobServiceGetJobStatusHandler.ServeHTTP(w, r)
+		case JobServiceGetJobExecutionPlanProcedure:
+			jobServiceGetJobExecutionPlanHandler.ServeHTTP(w, r)
+		case JobServiceListJobApprovalRequestsProcedure:
+			jobServiceListJobApprovalRequestsHandler.ServeHTTP(w, r)
+		case JobServiceRequestJobApprovalProcedure:
+			jobServiceRequestJobApprovalHandler.ServeHTTP(w, r)
+		case JobServiceApproveJobApprovalProcedure:
+			jobServiceApproveJobApprovalHandler.ServeHTTP(w, r)
+		case JobServiceRejectJobApprovalProcedure:
+			jobServiceRejectJobApprovalHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -105,4 +230,24 @@ type UnimplementedJobServiceHandler struct{}
 
 func (UnimplementedJobServiceHandler) GetJobStatus(context.Context, *connect.Request[v1.GetJobStatusRequest]) (*connect.Response[v1.GetJobStatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.JobService.GetJobStatus is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) GetJobExecutionPlan(context.Context, *connect.Request[v1.GetJobExecutionPlanRequest]) (*connect.Response[v1.GetJobExecutionPlanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.JobService.GetJobExecutionPlan is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) ListJobApprovalRequests(context.Context, *connect.Request[v1.ListJobApprovalRequestsRequest]) (*connect.Response[v1.ListJobApprovalRequestsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.JobService.ListJobApprovalRequests is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) RequestJobApproval(context.Context, *connect.Request[v1.RequestJobApprovalRequest]) (*connect.Response[v1.RequestJobApprovalResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.JobService.RequestJobApproval is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) ApproveJobApproval(context.Context, *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.JobService.ApproveJobApproval is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.graph.v1.JobService.RejectJobApproval is not implemented"))
 }

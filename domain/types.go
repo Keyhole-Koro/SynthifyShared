@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"strings"
+	"time"
+)
 
 // DocumentLifecycleState represents the document processing lifecycle state.
 type DocumentLifecycleState string
@@ -262,6 +266,96 @@ type JobMutationLog struct {
 	AfterJSON      string `json:"after_json,omitempty"`
 	ProvenanceJSON string `json:"provenance_json,omitempty"`
 	CreatedAt      string `json:"created_at"`
+}
+
+type JobExecutionPlan struct {
+	PlanID    string `json:"plan_id"`
+	JobID     string `json:"job_id"`
+	Status    string `json:"status"`
+	Summary   string `json:"summary,omitempty"`
+	PlanJSON  string `json:"plan_json,omitempty"`
+	CreatedBy string `json:"created_by,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
+type JobEvaluationResult struct {
+	JobID         string   `json:"job_id"`
+	PlanID        string   `json:"plan_id,omitempty"`
+	Passed        bool     `json:"passed"`
+	Status        string   `json:"status,omitempty"`
+	Summary       string   `json:"summary,omitempty"`
+	Score         int32    `json:"score,omitempty"`
+	Findings      []string `json:"findings,omitempty"`
+	MutationCount int32    `json:"mutation_count,omitempty"`
+}
+
+type JobApprovalRequest struct {
+	ApprovalID          string         `json:"approval_id"`
+	JobID               string         `json:"job_id"`
+	PlanID              string         `json:"plan_id"`
+	Status              string         `json:"status"`
+	RequestedOperations []JobOperation `json:"requested_operations,omitempty"`
+	Reason              string         `json:"reason,omitempty"`
+	RiskTier            string         `json:"risk_tier,omitempty"`
+	RequestedBy         string         `json:"requested_by,omitempty"`
+	ReviewedBy          string         `json:"reviewed_by,omitempty"`
+	RequestedAt         string         `json:"requested_at,omitempty"`
+	ReviewedAt          string         `json:"reviewed_at,omitempty"`
+}
+
+type jobExecutionPlanPayload struct {
+	Steps []struct {
+		RiskTier string `json:"risk_tier"`
+	} `json:"steps"`
+}
+
+func (p *JobExecutionPlan) HighestRiskTier() string {
+	if p == nil || strings.TrimSpace(p.PlanJSON) == "" {
+		return "tier_1"
+	}
+	var payload jobExecutionPlanPayload
+	if err := json.Unmarshal([]byte(p.PlanJSON), &payload); err != nil {
+		return "tier_1"
+	}
+	maxRisk := "tier_1"
+	for _, step := range payload.Steps {
+		risk := normalizeRiskTier(step.RiskTier)
+		if riskTierRank(risk) > riskTierRank(maxRisk) {
+			maxRisk = risk
+		}
+	}
+	return maxRisk
+}
+
+func (p *JobExecutionPlan) RequiresApproval() bool {
+	return riskTierRank(p.HighestRiskTier()) >= riskTierRank("tier_2")
+}
+
+func normalizeRiskTier(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "tier_3", "approval_required":
+		return "tier_3"
+	case "tier_2", "review_required":
+		return "tier_2"
+	default:
+		return "tier_1"
+	}
+}
+
+func NormalizeRiskTierForPlanning(value string) string {
+	return normalizeRiskTier(value)
+}
+
+func riskTierRank(value string) int {
+	switch normalizeRiskTier(value) {
+	case "tier_3":
+		return 3
+	case "tier_2":
+		return 2
+	default:
+		return 1
+	}
 }
 
 func DefaultJobCapability(jobID, workspaceID, graphID, documentID string, createdAt time.Time) *JobCapability {
