@@ -246,13 +246,13 @@ func (x *GetExtractionStatsRequest) GetDocumentId() string {
 }
 
 type ExtractionMetrics struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	NodesByLevel    map[string]int32       `protobuf:"bytes,1,rep,name=nodes_by_level,json=nodesByLevel,proto3" json:"nodes_by_level,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // "0" -> 3, "1" -> 12, ...
-	Pass1NodeCount  int32                  `protobuf:"varint,2,opt,name=pass1_node_count,json=pass1NodeCount,proto3" json:"pass1_node_count,omitempty"`
-	Pass2NodeCount  int32                  `protobuf:"varint,3,opt,name=pass2_node_count,json=pass2NodeCount,proto3" json:"pass2_node_count,omitempty"`
-	MergedNodeCount int32                  `protobuf:"varint,4,opt,name=merged_node_count,json=mergedNodeCount,proto3" json:"merged_node_count,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	NodesByLevel         map[string]int32       `protobuf:"bytes,1,rep,name=nodes_by_level,json=nodesByLevel,proto3" json:"nodes_by_level,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // "0" -> 3, "1" -> 12, ...
+	SynthesizedNodeCount int32                  `protobuf:"varint,2,opt,name=synthesized_node_count,json=synthesizedNodeCount,proto3" json:"synthesized_node_count,omitempty"`
+	SynthesizedEdgeCount int32                  `protobuf:"varint,3,opt,name=synthesized_edge_count,json=synthesizedEdgeCount,proto3" json:"synthesized_edge_count,omitempty"`
+	ReviewedNodeCount    int32                  `protobuf:"varint,4,opt,name=reviewed_node_count,json=reviewedNodeCount,proto3" json:"reviewed_node_count,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ExtractionMetrics) Reset() {
@@ -292,23 +292,23 @@ func (x *ExtractionMetrics) GetNodesByLevel() map[string]int32 {
 	return nil
 }
 
-func (x *ExtractionMetrics) GetPass1NodeCount() int32 {
+func (x *ExtractionMetrics) GetSynthesizedNodeCount() int32 {
 	if x != nil {
-		return x.Pass1NodeCount
+		return x.SynthesizedNodeCount
 	}
 	return 0
 }
 
-func (x *ExtractionMetrics) GetPass2NodeCount() int32 {
+func (x *ExtractionMetrics) GetSynthesizedEdgeCount() int32 {
 	if x != nil {
-		return x.Pass2NodeCount
+		return x.SynthesizedEdgeCount
 	}
 	return 0
 }
 
-func (x *ExtractionMetrics) GetMergedNodeCount() int32 {
+func (x *ExtractionMetrics) GetReviewedNodeCount() int32 {
 	if x != nil {
-		return x.MergedNodeCount
+		return x.ReviewedNodeCount
 	}
 	return 0
 }
@@ -995,9 +995,9 @@ const file_synthify_graph_v1_monitoring_proto_rawDesc = "" +
 	"documentId\"\xb2\x02\n" +
 	"\x11ExtractionMetrics\x12\\\n" +
 	"\x0enodes_by_level\x18\x01 \x03(\v26.synthify.graph.v1.ExtractionMetrics.NodesByLevelEntryR\fnodesByLevel\x12(\n" +
-	"\x10pass1_node_count\x18\x02 \x01(\x05R\x0epass1NodeCount\x12(\n" +
-	"\x10pass2_node_count\x18\x03 \x01(\x05R\x0epass2NodeCount\x12*\n" +
-	"\x11merged_node_count\x18\x04 \x01(\x05R\x0fmergedNodeCount\x1a?\n" +
+	"\x16synthesized_node_count\x18\x02 \x01(\x05R\x14synthesizedNodeCount\x12,\n" +
+	"\x16synthesized_edge_count\x18\x03 \x01(\x05R\x14synthesizedEdgeCount\x12&\n" +
+	"\x13reviewed_node_count\x18\x04 \x01(\x05R\x11reviewedNodeCount\x1a?\n" +
 	"\x11NodesByLevelEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xf5\x01\n" +

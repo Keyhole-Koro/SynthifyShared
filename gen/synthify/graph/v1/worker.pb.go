@@ -21,7 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type ProcessPipelineRequest struct {
+type ExecuteApprovedPlanRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	JobType       string                 `protobuf:"bytes,2,opt,name=job_type,json=jobType,proto3" json:"job_type,omitempty"`
@@ -35,20 +35,20 @@ type ProcessPipelineRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ProcessPipelineRequest) Reset() {
-	*x = ProcessPipelineRequest{}
+func (x *ExecuteApprovedPlanRequest) Reset() {
+	*x = ExecuteApprovedPlanRequest{}
 	mi := &file_synthify_graph_v1_worker_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ProcessPipelineRequest) String() string {
+func (x *ExecuteApprovedPlanRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ProcessPipelineRequest) ProtoMessage() {}
+func (*ExecuteApprovedPlanRequest) ProtoMessage() {}
 
-func (x *ProcessPipelineRequest) ProtoReflect() protoreflect.Message {
+func (x *ExecuteApprovedPlanRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_synthify_graph_v1_worker_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -60,88 +60,88 @@ func (x *ProcessPipelineRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProcessPipelineRequest.ProtoReflect.Descriptor instead.
-func (*ProcessPipelineRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExecuteApprovedPlanRequest.ProtoReflect.Descriptor instead.
+func (*ExecuteApprovedPlanRequest) Descriptor() ([]byte, []int) {
 	return file_synthify_graph_v1_worker_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ProcessPipelineRequest) GetJobId() string {
+func (x *ExecuteApprovedPlanRequest) GetJobId() string {
 	if x != nil {
 		return x.JobId
 	}
 	return ""
 }
 
-func (x *ProcessPipelineRequest) GetJobType() string {
+func (x *ExecuteApprovedPlanRequest) GetJobType() string {
 	if x != nil {
 		return x.JobType
 	}
 	return ""
 }
 
-func (x *ProcessPipelineRequest) GetDocumentId() string {
+func (x *ExecuteApprovedPlanRequest) GetDocumentId() string {
 	if x != nil {
 		return x.DocumentId
 	}
 	return ""
 }
 
-func (x *ProcessPipelineRequest) GetWorkspaceId() string {
+func (x *ExecuteApprovedPlanRequest) GetWorkspaceId() string {
 	if x != nil {
 		return x.WorkspaceId
 	}
 	return ""
 }
 
-func (x *ProcessPipelineRequest) GetGraphId() string {
+func (x *ExecuteApprovedPlanRequest) GetGraphId() string {
 	if x != nil {
 		return x.GraphId
 	}
 	return ""
 }
 
-func (x *ProcessPipelineRequest) GetFileUri() string {
+func (x *ExecuteApprovedPlanRequest) GetFileUri() string {
 	if x != nil {
 		return x.FileUri
 	}
 	return ""
 }
 
-func (x *ProcessPipelineRequest) GetFilename() string {
+func (x *ExecuteApprovedPlanRequest) GetFilename() string {
 	if x != nil {
 		return x.Filename
 	}
 	return ""
 }
 
-func (x *ProcessPipelineRequest) GetMimeType() string {
+func (x *ExecuteApprovedPlanRequest) GetMimeType() string {
 	if x != nil {
 		return x.MimeType
 	}
 	return ""
 }
 
-type ProcessPipelineResponse struct {
+type ExecuteApprovedPlanResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ProcessPipelineResponse) Reset() {
-	*x = ProcessPipelineResponse{}
+func (x *ExecuteApprovedPlanResponse) Reset() {
+	*x = ExecuteApprovedPlanResponse{}
 	mi := &file_synthify_graph_v1_worker_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ProcessPipelineResponse) String() string {
+func (x *ExecuteApprovedPlanResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ProcessPipelineResponse) ProtoMessage() {}
+func (*ExecuteApprovedPlanResponse) ProtoMessage() {}
 
-func (x *ProcessPipelineResponse) ProtoReflect() protoreflect.Message {
+func (x *ExecuteApprovedPlanResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_synthify_graph_v1_worker_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -153,12 +153,12 @@ func (x *ProcessPipelineResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProcessPipelineResponse.ProtoReflect.Descriptor instead.
-func (*ProcessPipelineResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExecuteApprovedPlanResponse.ProtoReflect.Descriptor instead.
+func (*ExecuteApprovedPlanResponse) Descriptor() ([]byte, []int) {
 	return file_synthify_graph_v1_worker_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ProcessPipelineResponse) GetStatus() string {
+func (x *ExecuteApprovedPlanResponse) GetStatus() string {
 	if x != nil {
 		return x.Status
 	}
@@ -170,7 +170,7 @@ var File_synthify_graph_v1_worker_proto protoreflect.FileDescriptor
 const file_synthify_graph_v1_worker_proto_rawDesc = "" +
 	"\n" +
 	"\x1esynthify/graph/v1/worker.proto\x12\x11synthify.graph.v1\"\xfd\x01\n" +
-	"\x16ProcessPipelineRequest\x12\x15\n" +
+	"\x16ExecuteApprovedPlanRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x19\n" +
 	"\bjob_type\x18\x02 \x01(\tR\ajobType\x12\x1f\n" +
 	"\vdocument_id\x18\x03 \x01(\tR\n" +
@@ -180,10 +180,10 @@ const file_synthify_graph_v1_worker_proto_rawDesc = "" +
 	"\bfile_uri\x18\x06 \x01(\tR\afileUri\x12\x1a\n" +
 	"\bfilename\x18\a \x01(\tR\bfilename\x12\x1b\n" +
 	"\tmime_type\x18\b \x01(\tR\bmimeType\"1\n" +
-	"\x17ProcessPipelineResponse\x12\x16\n" +
+	"\x17ExecuteApprovedPlanResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status2y\n" +
 	"\rWorkerService\x12h\n" +
-	"\x0fProcessPipeline\x12).synthify.graph.v1.ProcessPipelineRequest\x1a*.synthify.graph.v1.ProcessPipelineResponseBFZDgithub.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v1;graphv1b\x06proto3"
+	"\x0fExecuteApprovedPlan\x12).synthify.graph.v1.ExecuteApprovedPlanRequest\x1a*.synthify.graph.v1.ExecuteApprovedPlanResponseBFZDgithub.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v1;graphv1b\x06proto3"
 
 var (
 	file_synthify_graph_v1_worker_proto_rawDescOnce sync.Once
@@ -199,12 +199,12 @@ func file_synthify_graph_v1_worker_proto_rawDescGZIP() []byte {
 
 var file_synthify_graph_v1_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_synthify_graph_v1_worker_proto_goTypes = []any{
-	(*ProcessPipelineRequest)(nil),  // 0: synthify.graph.v1.ProcessPipelineRequest
-	(*ProcessPipelineResponse)(nil), // 1: synthify.graph.v1.ProcessPipelineResponse
+	(*ExecuteApprovedPlanRequest)(nil),  // 0: synthify.graph.v1.ExecuteApprovedPlanRequest
+	(*ExecuteApprovedPlanResponse)(nil), // 1: synthify.graph.v1.ExecuteApprovedPlanResponse
 }
 var file_synthify_graph_v1_worker_proto_depIdxs = []int32{
-	0, // 0: synthify.graph.v1.WorkerService.ProcessPipeline:input_type -> synthify.graph.v1.ProcessPipelineRequest
-	1, // 1: synthify.graph.v1.WorkerService.ProcessPipeline:output_type -> synthify.graph.v1.ProcessPipelineResponse
+	0, // 0: synthify.graph.v1.WorkerService.ExecuteApprovedPlan:input_type -> synthify.graph.v1.ExecuteApprovedPlanRequest
+	1, // 1: synthify.graph.v1.WorkerService.ExecuteApprovedPlan:output_type -> synthify.graph.v1.ExecuteApprovedPlanResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

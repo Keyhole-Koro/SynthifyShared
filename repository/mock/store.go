@@ -21,6 +21,8 @@ type Store struct {
 	documents          map[string]*domain.Document              // document_id → document
 	documentChunks     map[string][]*domain.DocumentChunk       // document_id → chunks
 	jobs               map[string]*domain.DocumentProcessingJob // job_id → job
+	jobCapabilities    map[string]*domain.JobCapability         // job_id → capability
+	jobMutationLogs    map[string][]*domain.JobMutationLog      // job_id → mutation logs
 	graphs             map[string]*domain.Graph                 // workspace_id → graph
 	nodes              map[string][]*domain.Node                // graph_id → nodes
 	edges              map[string][]*domain.Edge                // graph_id → edges
@@ -45,6 +47,8 @@ func NewStore(uploadURLGenerator ...repository.UploadURLGenerator) *Store {
 		documents:          make(map[string]*domain.Document),
 		documentChunks:     make(map[string][]*domain.DocumentChunk),
 		jobs:               make(map[string]*domain.DocumentProcessingJob),
+		jobCapabilities:    make(map[string]*domain.JobCapability),
+		jobMutationLogs:    make(map[string][]*domain.JobMutationLog),
 		graphs:             make(map[string]*domain.Graph),
 		nodes:              make(map[string][]*domain.Node),
 		edges:              make(map[string][]*domain.Edge),
@@ -160,13 +164,14 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 		UpdatedAt:   ws.CreatedAt,
 	}
 	s.nodes[graphID] = []*domain.Node{{
-		NodeID:      rootNodeID,
-		GraphID:     graphID,
-		Label:       name,
-		Level:       0,
-		Description: "Workspace root",
-		CreatedBy:   "system",
-		CreatedAt:   ws.CreatedAt,
+		NodeID:          rootNodeID,
+		GraphID:         graphID,
+		Label:           name,
+		Level:           0,
+		Description:     "Workspace root",
+		CreatedBy:       "system",
+		GovernanceState: string(domain.NodeGovernanceStateSystemGenerated),
+		CreatedAt:       ws.CreatedAt,
 	}}
 	return ws
 }
@@ -225,19 +230,39 @@ func (s *Store) GetLatestProcessingJob(docID string) (*domain.DocumentProcessing
 	return latest, true
 }
 
+func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	capability, ok := s.jobCapabilities[jobID]
+	return capability, ok
+}
+
 func (s *Store) CreateProcessingJob(docID, graphID, jobType string) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	doc, ok := s.documents[docID]
+	if !ok {
+		return nil
+	}
+	jobID := newID()
+	capability := domain.DefaultJobCapability(jobID, doc.WorkspaceID, graphID, docID, time.Now().UTC())
 	job := &domain.DocumentProcessingJob{
-		JobID:      newID(),
-		DocumentID: docID,
-		GraphID:    graphID,
-		JobType:    jobType,
-		Status:     "queued",
-		CreatedAt:  now(),
-		UpdatedAt:  now(),
+		JobID:            jobID,
+		DocumentID:       docID,
+		GraphID:          graphID,
+		JobType:          jobType,
+		Status:           "queued",
+		RequestedBy:      "system",
+		CapabilityID:     capability.CapabilityID,
+		ExecutionPlanID:  "plan_" + jobID,
+		PlanStatus:       "approved",
+		EvaluationStatus: "pending",
+		BudgetJSON:       `{"max_llm_calls":128,"max_tool_runs":0,"max_node_creations":4096,"max_edge_mutations":4096}`,
+		CreatedAt:        now(),
+		UpdatedAt:        now(),
 	}
 	s.jobs[job.JobID] = job
+	s.jobCapabilities[job.JobID] = capability
 
 	// Mock behavior: immediately attach sample nodes and edges to the graph.
 	if graphID != "" {
@@ -269,6 +294,9 @@ func (s *Store) MarkProcessingJobRunning(jobID string) bool {
 	}
 	job.Status = "running"
 	job.ErrorMessage = ""
+	if job.PlanStatus == "" {
+		job.PlanStatus = "executing"
+	}
 	job.UpdatedAt = now()
 	return true
 }
@@ -294,6 +322,7 @@ func (s *Store) FailProcessingJob(jobID, errorMessage string) bool {
 	}
 	job.Status = "failed"
 	job.ErrorMessage = errorMessage
+	job.EvaluationStatus = "failed"
 	job.UpdatedAt = now()
 	return true
 }
@@ -306,6 +335,8 @@ func (s *Store) CompleteProcessingJob(jobID string) bool {
 		return false
 	}
 	job.Status = "completed"
+	job.PlanStatus = "completed"
+	job.EvaluationStatus = "passed"
 	job.UpdatedAt = now()
 	return true
 }
@@ -518,32 +549,71 @@ func (s *Store) GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool) {
 }
 
 func (s *Store) CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node {
-	node := s.CreateStructuredNode(graphID, label, 0, "", description, "", createdBy)
+	node := s.createStructuredNodeDirect(graphID, label, 0, description, "", createdBy)
 	if node == nil || parentNodeID == "" {
 		return node
 	}
-	if s.CreateEdge(graphID, parentNodeID, node.NodeID, "hierarchical", "") == nil {
+	if s.createEdgeDirect(graphID, parentNodeID, node.NodeID, "hierarchical", "") == nil {
 		return nil
 	}
 	return node
 }
 
-func (s *Store) CreateStructuredNode(graphID, label string, level int, entityType, description, summaryHTML, createdBy string) *domain.Node {
+func (s *Store) createStructuredNodeDirect(graphID, label string, level int, description, summaryHTML, createdBy string) *domain.Node {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := &domain.Node{
-		NodeID:      newID(),
-		GraphID:     graphID,
-		Label:       label,
-		Level:       level,
-		EntityType:  entityType,
-		Description: description,
-		SummaryHTML: summaryHTML,
-		CreatedBy:   createdBy,
-		CreatedAt:   now(),
+		NodeID:          newID(),
+		GraphID:         graphID,
+		Label:           label,
+		Level:           level,
+		Description:     description,
+		SummaryHTML:     summaryHTML,
+		CreatedBy:       createdBy,
+		GovernanceState: string(domain.NodeGovernanceStateSystemGenerated),
+		CreatedAt:       now(),
 	}
 	s.nodes[graphID] = append(s.nodes[graphID], n)
 	return n
+}
+
+func (s *Store) CreateStructuredNodeWithCapability(capability *domain.JobCapability, jobID, documentID, graphID, label string, level int, description, summaryHTML, createdBy string, sourceChunkIDs []string) *domain.Node {
+	if !allowsMutation(capability, domain.JobOperationCreateNode, graphID, documentID) {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if capability.MaxNodeCreations > 0 && len(s.jobMutationLogs[jobID]) >= capability.MaxNodeCreations {
+		return nil
+	}
+	node := &domain.Node{
+		NodeID:            newID(),
+		GraphID:           graphID,
+		Label:             label,
+		Level:             level,
+		Description:       description,
+		SummaryHTML:       summaryHTML,
+		CreatedBy:         createdBy,
+		GovernanceState:   string(domain.NodeGovernanceStateSystemGenerated),
+		LastMutationJobID: jobID,
+		CreatedAt:         now(),
+	}
+	s.nodes[graphID] = append(s.nodes[graphID], node)
+	s.jobMutationLogs[jobID] = append(s.jobMutationLogs[jobID], &domain.JobMutationLog{
+		MutationID:     newID(),
+		JobID:          jobID,
+		CapabilityID:   capability.CapabilityID,
+		GraphID:        graphID,
+		TargetType:     "node",
+		TargetID:       node.NodeID,
+		MutationType:   "append",
+		RiskTier:       "tier_1",
+		BeforeJSON:     "{}",
+		AfterJSON:      `{"node_id":"` + node.NodeID + `"}`,
+		ProvenanceJSON: `{"document_id":"` + documentID + `"}`,
+		CreatedAt:      now(),
+	})
+	return node
 }
 
 func (s *Store) UpsertNodeSource(_, _, _, _ string, _ float64) error {
@@ -551,7 +621,7 @@ func (s *Store) UpsertNodeSource(_, _, _, _ string, _ float64) error {
 	return nil
 }
 
-func (s *Store) CreateEdge(graphID, sourceNodeID, targetNodeID, edgeType, description string) *domain.Edge {
+func (s *Store) createEdgeDirect(graphID, sourceNodeID, targetNodeID, edgeType, description string) *domain.Edge {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e := &domain.Edge{
@@ -567,19 +637,78 @@ func (s *Store) CreateEdge(graphID, sourceNodeID, targetNodeID, edgeType, descri
 	return e
 }
 
+func (s *Store) CreateEdgeWithCapability(capability *domain.JobCapability, jobID, documentID, graphID, sourceNodeID, targetNodeID, edgeType, description string, sourceChunkIDs []string) *domain.Edge {
+	if !allowsMutation(capability, domain.JobOperationCreateEdge, graphID, documentID) {
+		return nil
+	}
+	if !capability.AllowsNode(sourceNodeID) || !capability.AllowsNode(targetNodeID) {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	edge := &domain.Edge{
+		EdgeID:       newID(),
+		GraphID:      graphID,
+		SourceNodeID: sourceNodeID,
+		TargetNodeID: targetNodeID,
+		EdgeType:     edgeType,
+		Description:  description,
+		CreatedAt:    now(),
+	}
+	s.edges[graphID] = append(s.edges[graphID], edge)
+	s.jobMutationLogs[jobID] = append(s.jobMutationLogs[jobID], &domain.JobMutationLog{
+		MutationID:     newID(),
+		JobID:          jobID,
+		CapabilityID:   capability.CapabilityID,
+		GraphID:        graphID,
+		TargetType:     "edge",
+		TargetID:       edge.EdgeID,
+		MutationType:   "append",
+		RiskTier:       "tier_1",
+		BeforeJSON:     "{}",
+		AfterJSON:      `{"edge_id":"` + edge.EdgeID + `"}`,
+		ProvenanceJSON: `{"document_id":"` + documentID + `"}`,
+		CreatedAt:      now(),
+	})
+	return edge
+}
+
 func (s *Store) UpsertEdgeSource(_, _, _, _ string, _ float64) error {
 	return nil
 }
 
-func (s *Store) UpdateNodeSummaryHTML(nodeID, summaryHTML string) bool {
+func (s *Store) UpdateNodeSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, nodeID, summaryHTML string) bool {
+	if capability == nil || !capability.Allows(domain.JobOperationUpdateNode) || capability.IsExpired(time.Now().UTC()) {
+		return false
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, nodes := range s.nodes {
 		for _, node := range nodes {
-			if node.NodeID == nodeID {
-				node.SummaryHTML = summaryHTML
-				return true
+			if node.NodeID != nodeID {
+				continue
 			}
+			if node.GovernanceState == string(domain.NodeGovernanceStateHumanCurated) || node.GovernanceState == string(domain.NodeGovernanceStateLocked) {
+				return false
+			}
+			before := node.SummaryHTML
+			node.SummaryHTML = summaryHTML
+			node.LastMutationJobID = jobID
+			s.jobMutationLogs[jobID] = append(s.jobMutationLogs[jobID], &domain.JobMutationLog{
+				MutationID:     newID(),
+				JobID:          jobID,
+				CapabilityID:   capability.CapabilityID,
+				GraphID:        node.GraphID,
+				TargetType:     "node",
+				TargetID:       nodeID,
+				MutationType:   "revise",
+				RiskTier:       "tier_1",
+				BeforeJSON:     `{"summary_html":"` + before + `"}`,
+				AfterJSON:      `{"summary_html":"` + summaryHTML + `"}`,
+				ProvenanceJSON: `{"field":"summary_html"}`,
+				CreatedAt:      now(),
+			})
+			return true
 		}
 	}
 	return false
@@ -610,14 +739,14 @@ func (s *Store) RejectAlias(wsID, canonicalNodeID, aliasNodeID string) bool {
 func cloneSalesNodes(graphID string) []*domain.Node {
 	n := now()
 	return []*domain.Node{
-		{NodeID: "nd_root", GraphID: graphID, Label: "販売戦略", Description: "当期における販売拡大の最上位方針", CreatedAt: n},
-		{NodeID: "nd_tel", GraphID: graphID, Label: "テレアポ施策", Description: "月次100件を目標とした架電施策", CreatedAt: n},
-		{NodeID: "nd_sns", GraphID: graphID, Label: "SNS施策", Description: "SNSを活用したブランド認知向上施策", CreatedAt: n},
-		{NodeID: "nd_cv", GraphID: graphID, Label: "CV率 3.2%", EntityType: "metric", Description: "テレアポの成約率", CreatedAt: n},
-		{NodeID: "nd_script", GraphID: graphID, Label: "スクリプト改善", Description: "架電品質向上のためのトークスクリプト見直し施策", CreatedAt: n},
-		{NodeID: "nd_roi", GraphID: graphID, Label: "ROI比較", Description: "テレアポとSNSの投資対効果比較。SNSのROIが2.3倍高い", CreatedAt: n},
-		{NodeID: "nd_counter", GraphID: graphID, Label: "テレアポ不要論", Description: "SNSのROIが高いことからテレアポへの投資削減を主張する反論", CreatedAt: n},
-		{NodeID: "nd_evidence", GraphID: graphID, Label: "A社事例", Description: "競合A社がSNSマーケティングを強化し、新規リード獲得180%を達成した事例", CreatedAt: n},
+		{NodeID: "nd_root", GraphID: graphID, Label: "販売戦略", Description: "当期における販売拡大の最上位方針", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+		{NodeID: "nd_tel", GraphID: graphID, Label: "テレアポ施策", Description: "月次100件を目標とした架電施策", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+		{NodeID: "nd_sns", GraphID: graphID, Label: "SNS施策", Description: "SNSを活用したブランド認知向上施策", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+		{NodeID: "nd_cv", GraphID: graphID, Label: "CV率 3.2%", Description: "テレアポの成約率", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+		{NodeID: "nd_script", GraphID: graphID, Label: "スクリプト改善", Description: "架電品質向上のためのトークスクリプト見直し施策", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+		{NodeID: "nd_roi", GraphID: graphID, Label: "ROI比較", Description: "テレアポとSNSの投資対効果比較。SNSのROIが2.3倍高い", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+		{NodeID: "nd_counter", GraphID: graphID, Label: "テレアポ不要論", Description: "SNSのROIが高いことからテレアポへの投資削減を主張する反論", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+		{NodeID: "nd_evidence", GraphID: graphID, Label: "A社事例", Description: "競合A社がSNSマーケティングを強化し、新規リード獲得180%を達成した事例", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
 	}
 }
 
@@ -651,6 +780,19 @@ func (s *Store) nodeExists(nodeID string) bool {
 		}
 	}
 	return false
+}
+
+func allowsMutation(capability *domain.JobCapability, op domain.JobOperation, graphID, documentID string) bool {
+	if capability == nil || capability.IsExpired(time.Now().UTC()) {
+		return false
+	}
+	if !capability.Allows(op) {
+		return false
+	}
+	if capability.GraphID != "" && capability.GraphID != graphID {
+		return false
+	}
+	return capability.AllowsDocument(documentID)
 }
 
 func (s *Store) getWorkspaceRootNodeIDLocked(graphID string) (string, bool) {

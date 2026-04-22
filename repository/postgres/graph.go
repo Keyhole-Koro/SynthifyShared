@@ -161,7 +161,6 @@ func (s *Store) GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNo
 				GraphID:     r.GraphID,
 				Label:       r.Label,
 				Level:       int(r.Level),
-				EntityType:  r.EntityType,
 				Description: r.Description,
 				SummaryHTML: r.SummaryHtml,
 				CreatedBy:   r.CreatedBy,
@@ -213,8 +212,8 @@ func (s *Store) ensureWorkspaceRootNode(graphID, workspaceName string) error {
 		workspaceName = "Workspace"
 	}
 	_, err := s.db.ExecContext(context.Background(), `
-		INSERT INTO nodes (node_id, graph_id, label, category, level, entity_type, description, summary_html, created_by, created_at)
-		VALUES ($1, $2, $3, '', 0, '', 'Workspace root', '', 'system', $4)
+		INSERT INTO nodes (node_id, graph_id, label, category, level, description, summary_html, created_by, created_at)
+		VALUES ($1, $2, $3, '', 0, 'Workspace root', '', 'system', $4)
 	`, newID(), graphID, workspaceName, nowTime())
 	return err
 }
