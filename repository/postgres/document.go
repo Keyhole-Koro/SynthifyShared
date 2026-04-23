@@ -736,3 +736,56 @@ func leftPadIndex(i int) string {
 	}
 	return strconv.Itoa(i)
 }
+
+func toDocument(row sqlcgen.Document) *domain.Document {
+	return &domain.Document{
+		DocumentID:  row.DocumentID,
+		WorkspaceID: row.WorkspaceID,
+		UploadedBy:  row.UploadedBy,
+		Filename:    row.Filename,
+		MimeType:    row.MimeType,
+		FileSize:    row.FileSize,
+		CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func toProcessingJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
+	return &domain.DocumentProcessingJob{
+		JobID:        row.JobID,
+		DocumentID:   row.DocumentID,
+		WorkspaceID:  row.WorkspaceID,
+		JobType:      parseJobType(row.JobType),
+		Status:       parseJobStatus(row.Status),
+		CurrentStage: row.CurrentStage,
+		ErrorMessage: row.ErrorMessage,
+		ParamsJSON:   row.ParamsJson,
+		CreatedAt:    row.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:    row.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func parseJobStatus(s string) treev1.JobLifecycleState {
+	switch s {
+	case "queued":
+		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED
+	case "running":
+		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING
+	case "completed", "succeeded":
+		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED
+	case "failed":
+		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED
+	default:
+		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED
+	}
+}
+
+func parseJobType(s string) treev1.JobType {
+	switch s {
+	case "process_document":
+		return treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
+	case "reprocess_document":
+		return treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
+	default:
+		return treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
+	}
+}

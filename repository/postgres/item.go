@@ -275,3 +275,66 @@ func mustJSON(value any) string {
 	}
 	return string(encoded)
 }
+
+func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
+	return &domain.Item{
+		ItemID:          row.ID,
+		WorkspaceID:     row.WorkspaceID,
+		ParentID:        row.ParentId.String,
+		Label:           row.Label,
+		Level:           int(row.Level),
+		Description:     row.Description,
+		SummaryHTML:     row.SummaryHtml,
+		CreatedBy:       row.CreatedBy,
+		GovernanceState: parseGovernanceState(row.GovernanceState),
+		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
+		Scope:           treev1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+	}
+}
+
+func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
+	return &domain.Item{
+		ItemID:          row.ID,
+		WorkspaceID:     row.WorkspaceID,
+		ParentID:        row.ParentId.String,
+		Label:           row.Label,
+		Level:           int(row.Level),
+		Description:     row.Description,
+		SummaryHTML:     row.SummaryHtml,
+		CreatedBy:       row.CreatedBy,
+		GovernanceState: parseGovernanceState(row.GovernanceState),
+		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
+		Scope:           treev1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+	}
+}
+
+func parseGovernanceState(s string) treev1.ItemGovernanceState {
+	switch s {
+	case "system_generated":
+		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED
+	case "pending_review":
+		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_PENDING_REVIEW
+	case "human_curated":
+		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED
+	case "locked":
+		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED
+	default:
+		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED
+	}
+}
+
+func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
+	return &domain.Item{
+		ItemID:          row.ID,
+		WorkspaceID:     row.WorkspaceID,
+		ParentID:        row.ParentID.String,
+		Label:           row.Label,
+		Level:           int(row.Level),
+		Description:     row.Description,
+		SummaryHTML:     row.SummaryHtml,
+		CreatedBy:       row.CreatedBy,
+		GovernanceState: treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED,
+		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
+		Scope:           treev1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+	}
+}

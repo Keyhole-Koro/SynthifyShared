@@ -3,22 +3,49 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
 
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
+	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
 )
 
 func (s *Store) GetOrCreateTree(wsID string) (*domain.Tree, error) {
-	root, err := s.q().GetTreeRoot(context.Background(), wsID)
-	if err != nil {
-		return nil, err
+	ctx := context.Background()
+	// 1 ワークスペース = 1 ツリー。ルートアイテムがあればそれを返す。
+	root, err := s.q().GetTreeRoot(ctx, wsID)
+	if err == nil {
+		return &domain.Tree{
+			TreeID:      wsID,
+			WorkspaceID: wsID,
+			Name:        "default",
+			CreatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
+			UpdatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
+		}, nil
 	}
-	return &domain.Tree{
-		TreeID:      wsID, // ワークスペースIDをツリーIDとして扱う
+
+	// ルートがない場合は作成
+	ws, err := s.q().GetWorkspace(ctx, wsID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workspace: %w", err)
+	}
+
+	err = s.q().CreateItem(ctx, sqlcgen.CreateItemParams{
+		ID:          newID(),
 		WorkspaceID: wsID,
-		Name:        "default",
-		CreatedAt:   root.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:   root.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-	}, nil
+		ParentID:    sql.NullString{Valid: false},
+		Label:       ws.Name,
+		Level:       0,
+		Description: "Workspace root",
+		SummaryHtml: "",
+		CreatedBy:   "system",
+		CreatedAt:   nowTime(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create root item: %w", err)
+	}
+
+	return s.GetOrCreateTree(wsID)
 }
 
 func (s *Store) GetTreeByWorkspace(wsID string) ([]*domain.Item, bool) {
@@ -94,31 +121,9 @@ func (s *Store) GetSubtree(rootItemID string, maxDepth int) ([]*domain.SubtreeIt
 
 	for _, r := range rows {
 		items = append(items, &domain.SubtreeItem{
-			Item: domain.Item{
-				ItemID:      r.ID,
-				WorkspaceID: r.WorkspaceID,
-				ParentID:    r.ParentID.String,
-				Label:       r.Label,
-				Level:       int(r.Level),
-				Description: r.Description,
-				SummaryHTML: r.SummaryHtml,
-				CreatedBy:   r.CreatedBy,
-				CreatedAt:   r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			},
+			Item:        *toItemFromChildRow(r),
 			HasChildren: r.HasChildren,
 		})
-	}
-	return items, nil
-}
-
-func (s *Store) listItemsByTree(wsID string) ([]*domain.Item, error) {
-	rows, err := s.q().ListItemsByWorkspace(context.Background(), wsID)
-	if err != nil {
-		return nil, err
-	}
-	var items []*domain.Item
-	for _, row := range rows {
-		items = append(items, toItemFromItemRow(row))
 	}
 	return items, nil
 }

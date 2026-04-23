@@ -192,3 +192,26 @@ func (s *Store) GetWorkspaceRootItemIDByWorkspace(workspaceID string) (string, b
 	}
 	return row.ID, true
 }
+
+func toAccount(row sqlcgen.Account) *domain.Account {
+	return &domain.Account{
+		AccountID:          row.AccountID,
+		Name:               row.Name,
+		Plan:               row.Plan,
+		StorageQuotaBytes:  row.StorageQuotaBytes,
+		StorageUsedBytes:   row.StorageUsedBytes,
+		MaxFileSizeBytes:   row.MaxFileSizeBytes,
+		MaxUploadsPerFiveH: int64(row.MaxUploadsPer5h),
+		MaxUploadsPerWeek:  int64(row.MaxUploadsPer1week),
+		CreatedAt:          row.CreatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func toWorkspace(row sqlcgen.Workspace) *domain.Workspace {
+	return &domain.Workspace{
+		WorkspaceID: row.WorkspaceID,
+		AccountID:   row.AccountID,
+		Name:        row.Name,
+		CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
+	}
+}
