@@ -6,7 +6,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
-func TestCreateNode_DBError_ReturnsNil(t *testing.T) {
+func TestCreateItem_DBError_ReturnsNil(t *testing.T) {
 	db, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -16,13 +16,13 @@ func TestCreateNode_DBError_ReturnsNil(t *testing.T) {
 	store := &Store{db: db}
 
 	// No expectations set → Begin or any query returns an error.
-	node := store.CreateNode("graph_1", "New Node", "Description", "", "user_1")
-	if node != nil {
-		t.Fatal("expected nil on DB error, got node")
+	item := store.CreateItem("tree_1", "New Item", "Description", "", "user_1")
+	if item != nil {
+		t.Fatal("expected nil on DB error, got item")
 	}
 }
 
-func TestGetNode_DBError_ReturnsFalse(t *testing.T) {
+func TestGetItem_DBError_ReturnsFalse(t *testing.T) {
 	db, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -31,7 +31,7 @@ func TestGetNode_DBError_ReturnsFalse(t *testing.T) {
 
 	store := &Store{db: db}
 
-	_, _, ok := store.GetNode("nonexistent_node")
+	_, ok := store.GetItem("nonexistent_item")
 	if ok {
 		t.Fatal("expected false on DB error, got true")
 	}

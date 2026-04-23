@@ -1,198 +1,112 @@
 package mock
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
+	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
 	"github.com/Keyhole-Koro/SynthifyShared/repository"
-	"github.com/oklog/ulid/v2"
 )
 
-// Store is an in-memory mock store that holds all data.
 type Store struct {
-	mu                  sync.RWMutex
-	accounts            map[string]*domain.Account               // account_id → account
-	accountUsers        map[string][]string                      // account_id → []user_id
-	userAccount         map[string]string                        // user_id → account_id
-	workspaces          map[string]*domain.Workspace             // workspace_id → workspace
-	documents           map[string]*domain.Document              // document_id → document
-	documentChunks      map[string][]*domain.DocumentChunk       // document_id → chunks
-	jobs                map[string]*domain.DocumentProcessingJob // job_id → job
-	jobCapabilities     map[string]*domain.JobCapability         // job_id → capability
-	jobExecutionPlans   map[string]*domain.JobExecutionPlan      // job_id → plan
-	jobMutationLogs     map[string][]*domain.JobMutationLog      // job_id → mutation logs
-	jobApprovalRequests map[string][]*domain.JobApprovalRequest  // job_id → approval requests
-	graphs              map[string]*domain.Graph                 // workspace_id → graph
-	nodes               map[string][]*domain.Node                // graph_id → nodes
-	edges               map[string][]*domain.Edge                // graph_id → edges
-	aliases             map[string]string                        // alias node id -> canonical node id
-	uploadURLGenerator  repository.UploadURLGenerator
+	mu           sync.RWMutex
+	accounts     map[string]*domain.Account
+	workspaces   map[string]*domain.Workspace
+	documents    map[string]*domain.Document
+	jobs         map[string]*domain.DocumentProcessingJob
+	capabilities map[string]*domain.JobCapability
+	plans        map[string]*domain.JobExecutionPlan
+	approvals    map[string][]*domain.JobApprovalRequest
+	items        map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
+	sources      map[string][]*domain.ItemSource
 }
 
-func NewStore(uploadURLGenerator ...repository.UploadURLGenerator) *Store {
-	var generator repository.UploadURLGenerator
-	if len(uploadURLGenerator) > 0 && uploadURLGenerator[0] != nil {
-		generator = uploadURLGenerator[0]
-	} else {
-		generator = func(workspaceID, documentID string) string {
-			return fmt.Sprintf("http://example.local/%s/%s", workspaceID, documentID)
-		}
+func NewStore() *Store {
+	return &Store{
+		accounts:     make(map[string]*domain.Account),
+		workspaces:   make(map[string]*domain.Workspace),
+		documents:    make(map[string]*domain.Document),
+		jobs:         make(map[string]*domain.DocumentProcessingJob),
+		capabilities: make(map[string]*domain.JobCapability),
+		plans:        make(map[string]*domain.JobExecutionPlan),
+		approvals:    make(map[string][]*domain.JobApprovalRequest),
+		items:        make(map[string]map[string]*domain.Item),
+		sources:      make(map[string][]*domain.ItemSource),
 	}
-	s := &Store{
-		accounts:            make(map[string]*domain.Account),
-		accountUsers:        make(map[string][]string),
-		userAccount:         make(map[string]string),
-		workspaces:          make(map[string]*domain.Workspace),
-		documents:           make(map[string]*domain.Document),
-		documentChunks:      make(map[string][]*domain.DocumentChunk),
-		jobs:                make(map[string]*domain.DocumentProcessingJob),
-		jobCapabilities:     make(map[string]*domain.JobCapability),
-		jobExecutionPlans:   make(map[string]*domain.JobExecutionPlan),
-		jobMutationLogs:     make(map[string][]*domain.JobMutationLog),
-		jobApprovalRequests: make(map[string][]*domain.JobApprovalRequest),
-		graphs:              make(map[string]*domain.Graph),
-		nodes:               make(map[string][]*domain.Node),
-		edges:               make(map[string][]*domain.Edge),
-		aliases:             make(map[string]string),
-		uploadURLGenerator:  generator,
-	}
-	return s
 }
 
-func newID() string {
-	return ulid.Make().String()
-}
-
-func now() string {
-	return time.Now().UTC().Format(time.RFC3339)
-}
-
-// ─── Account ──────────────────────────────────────────────────────────────────
-
+// AccountRepository
 func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if accountID, ok := s.userAccount[userID]; ok {
-		if acct, ok := s.accounts[accountID]; ok {
-			return acct, nil
-		}
+	if a, ok := s.accounts[userID]; ok {
+		return a, nil
 	}
-	acct := &domain.Account{
-		AccountID:          newID(),
-		Name:               fmt.Sprintf("account-%s", userID),
-		Plan:               "registered",
-		StorageQuotaBytes:  5 * 1 << 30,
-		StorageUsedBytes:   0,
-		MaxFileSizeBytes:   100 << 20,
-		MaxUploadsPerFiveH: 20,
-		MaxUploadsPerWeek:  100,
-		CreatedAt:          now(),
+	a := &domain.Account{
+		AccountID: userID,
+		Name:      "User " + userID,
+		Plan:      "anonymous",
+		CreatedAt: time.Now().Format(time.RFC3339),
 	}
-	s.accounts[acct.AccountID] = acct
-	s.accountUsers[acct.AccountID] = []string{userID}
-	s.userAccount[userID] = acct.AccountID
-	return acct, nil
+	s.accounts[userID] = a
+	return a, nil
 }
 
-func (s *Store) GetAccount(accountID string) (*domain.Account, error) {
+func (s *Store) GetAccount(id string) (*domain.Account, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	acct, ok := s.accounts[accountID]
-	if !ok {
-		return nil, errors.New("account not found")
+	if a, ok := s.accounts[id]; ok {
+		return a, nil
 	}
-	return acct, nil
+	return nil, fmt.Errorf("account not found")
 }
 
-// ─── Workspace ────────────────────────────────────────────────────────────────
-
+// WorkspaceRepository
 func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	accountID, ok := s.userAccount[userID]
-	if !ok {
-		return nil
+	var res []*domain.Workspace
+	for _, w := range s.workspaces {
+		res = append(res, w)
 	}
-	var out []*domain.Workspace
-	for _, ws := range s.workspaces {
-		if ws.AccountID == accountID {
-			out = append(out, ws)
-		}
-	}
-	return out
+	return res
 }
 
 func (s *Store) GetWorkspace(id string) (*domain.Workspace, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	ws, ok := s.workspaces[id]
-	return ws, ok
+	w, ok := s.workspaces[id]
+	return w, ok
 }
 
-func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	ws, ok := s.workspaces[wsID]
-	if !ok {
-		return false
-	}
-	accountID, ok := s.userAccount[userID]
-	if !ok {
-		return false
-	}
-	return ws.AccountID == accountID
-}
+func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool { return true }
 
 func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	wsID := newID()
-	graphID := newID()
-	rootNodeID := newID()
-	ws := &domain.Workspace{
-		WorkspaceID: wsID,
+	w := &domain.Workspace{
+		WorkspaceID: "ws-" + name,
 		AccountID:   accountID,
 		Name:        name,
-		RootNodeID:  rootNodeID,
-		CreatedAt:   now(),
+		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
-	s.workspaces[ws.WorkspaceID] = ws
-	s.graphs[graphID] = &domain.Graph{
-		GraphID:     graphID,
-		WorkspaceID: wsID,
-		Name:        "default",
-		CreatedAt:   ws.CreatedAt,
-		UpdatedAt:   ws.CreatedAt,
-	}
-	s.nodes[graphID] = []*domain.Node{{
-		NodeID:          rootNodeID,
-		GraphID:         graphID,
-		Label:           name,
-		Level:           0,
-		Description:     "Workspace root",
-		CreatedBy:       "system",
-		GovernanceState: string(domain.NodeGovernanceStateSystemGenerated),
-		CreatedAt:       ws.CreatedAt,
-	}}
-	return ws
+	s.workspaces[w.WorkspaceID] = w
+	return w
 }
 
-// ─── Document ─────────────────────────────────────────────────────────────────
-
+// DocumentRepository
 func (s *Store) ListDocuments(wsID string) []*domain.Document {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var out []*domain.Document
+	var res []*domain.Document
 	for _, d := range s.documents {
 		if d.WorkspaceID == wsID {
-			out = append(out, d)
+			res = append(res, d)
 		}
 	}
-	return out
+	return res
 }
 
 func (s *Store) GetDocument(id string) (*domain.Document, bool) {
@@ -202,828 +116,261 @@ func (s *Store) GetDocument(id string) (*domain.Document, bool) {
 	return d, ok
 }
 
+func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool) {
+	return nil, false
+}
+
+func (s *Store) GetJobPlanningSignals(documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
+	return &domain.JobPlanningSignals{DocumentID: documentID, WorkspaceID: workspaceID}, true
+}
+
 func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	doc := &domain.Document{
-		DocumentID:  newID(),
+	d := &domain.Document{
+		DocumentID:  "doc-" + filename,
 		WorkspaceID: wsID,
 		UploadedBy:  uploadedBy,
 		Filename:    filename,
 		MimeType:    mimeType,
 		FileSize:    fileSize,
-		CreatedAt:   now(),
+		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
-	s.documents[doc.DocumentID] = doc
-	return doc, s.uploadURLGenerator(wsID, doc.DocumentID)
+	s.documents[d.DocumentID] = d
+	return d, "http://mock-upload-url/" + d.DocumentID
 }
 
 func (s *Store) GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var latest *domain.DocumentProcessingJob
-	for _, job := range s.jobs {
-		if job.DocumentID == docID {
-			if latest == nil || job.CreatedAt > latest.CreatedAt {
-				latest = job
-			}
+	for _, j := range s.jobs {
+		if j.DocumentID == docID {
+			return j, true
 		}
 	}
-	if latest == nil {
-		return nil, false
-	}
-	return latest, true
-}
-
-func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	capability, ok := s.jobCapabilities[jobID]
-	return capability, ok
+	return nil, false
 }
 
 func (s *Store) GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	job, ok := s.jobs[jobID]
-	return job, ok
+	j, ok := s.jobs[jobID]
+	return j, ok
+}
+
+func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	c, ok := s.capabilities[jobID]
+	return c, ok
 }
 
 func (s *Store) GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	plan, ok := s.jobExecutionPlans[jobID]
-	return plan, ok
+	p, ok := s.plans[jobID]
+	return p, ok
 }
 
 func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.jobs[jobID]; !ok || plan == nil {
-		return false
-	}
-	if strings.TrimSpace(plan.PlanID) == "" {
-		plan.PlanID = "plan_" + jobID
-	}
-	if strings.TrimSpace(plan.Status) == "" {
-		plan.Status = "draft"
-	}
-	plan.JobID = jobID
-	if plan.CreatedAt == "" {
-		plan.CreatedAt = now()
-	}
-	plan.UpdatedAt = now()
-	s.jobExecutionPlans[jobID] = plan
-	job := s.jobs[jobID]
-	job.ExecutionPlanID = plan.PlanID
-	job.PlanStatus = plan.Status
-	job.UpdatedAt = plan.UpdatedAt
+	s.plans[jobID] = plan
 	return true
 }
 
 func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return nil, false
-	}
-	plan := s.jobExecutionPlans[jobID]
-	result := &domain.JobEvaluationResult{
-		JobID:         job.JobID,
-		Passed:        job.Status == "completed" && job.EvaluationStatus != "failed",
-		Status:        job.EvaluationStatus,
-		MutationCount: int32(len(s.jobMutationLogs[jobID])),
-	}
-	if plan != nil {
-		result.PlanID = plan.PlanID
-	}
-	if result.Passed {
-		result.Summary = fmt.Sprintf("job completed with %d graph mutations", result.MutationCount)
-		result.Score = 100
-		if result.MutationCount == 0 {
-			result.Findings = []string{"job completed without any recorded graph mutations"}
-			result.Score = 70
-		}
-	} else {
-		result.Summary = firstNonEmpty(job.ErrorMessage, "job has not reached a passing evaluation state")
-		result.Score = 0
-		if job.ErrorMessage != "" {
-			result.Findings = []string{job.ErrorMessage}
-		} else {
-			result.Findings = []string{"job status is not completed"}
-		}
-	}
-	if result.Status == "" {
-		if result.Passed {
-			result.Status = "passed"
-		} else {
-			result.Status = "failed"
-		}
-	}
-	return result, true
+	return &domain.JobEvaluationResult{JobID: jobID, Passed: true, Summary: "mock eval passed"}, true
 }
 
 func (s *Store) ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return append([]*domain.JobApprovalRequest(nil), s.jobApprovalRequests[jobID]...), true
+	a, ok := s.approvals[jobID]
+	return a, ok
 }
 
 func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return nil, false
-	}
-	plan, ok := s.jobExecutionPlans[jobID]
-	if !ok {
-		return nil, false
-	}
-	for _, req := range s.jobApprovalRequests[jobID] {
-		if req.Status == "pending" {
-			return req, true
-		}
-	}
-	req := &domain.JobApprovalRequest{
-		ApprovalID:          "apr_" + newID(),
-		JobID:               jobID,
-		PlanID:              plan.PlanID,
-		Status:              "pending",
-		RequestedOperations: []domain.JobOperation{domain.JobOperationEmitPlan, domain.JobOperationEmitEval},
-		Reason:              firstNonEmpty(reason, "approval required before execution"),
-		RiskTier:            plan.HighestRiskTier(),
-		RequestedBy:         firstNonEmpty(requestedBy, "system"),
-		RequestedAt:         now(),
-	}
-	s.jobApprovalRequests[jobID] = append([]*domain.JobApprovalRequest{req}, s.jobApprovalRequests[jobID]...)
-	plan.Status = "pending_approval"
-	plan.UpdatedAt = now()
-	job.PlanStatus = "pending_approval"
-	job.UpdatedAt = now()
-	return req, true
+	return &domain.JobApprovalRequest{JobID: jobID, Status: "pending"}, true
 }
 
-func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool {
+func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool        { return true }
+func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool { return true }
+
+func (s *Store) CreateProcessingJob(docID, workspaceID, jobType string) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return false
+	j := &domain.DocumentProcessingJob{
+		JobID:       "job-" + docID,
+		DocumentID:  docID,
+		WorkspaceID: workspaceID,
+		JobType:     parseJobType(jobType),
+		Status:      treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
+		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
-	plan, ok := s.jobExecutionPlans[jobID]
-	if !ok {
-		return false
-	}
-	for _, req := range s.jobApprovalRequests[jobID] {
-		if req.ApprovalID == approvalID {
-			req.Status = "approved"
-			req.ReviewedBy = firstNonEmpty(reviewedBy, "reviewer")
-			req.ReviewedAt = now()
-			plan.Status = "approved"
-			plan.UpdatedAt = now()
-			job.PlanStatus = "approved"
-			job.UpdatedAt = now()
-			return true
-		}
-	}
-	return false
+	s.jobs[j.JobID] = j
+	return j
 }
 
-func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return false
-	}
-	plan, ok := s.jobExecutionPlans[jobID]
-	if !ok {
-		return false
-	}
-	for _, req := range s.jobApprovalRequests[jobID] {
-		if req.ApprovalID == approvalID {
-			req.Status = "rejected"
-			req.ReviewedBy = firstNonEmpty(reviewedBy, "reviewer")
-			req.ReviewedAt = now()
-			if strings.TrimSpace(reason) != "" {
-				req.Reason = strings.TrimSpace(reason)
-			}
-			plan.Status = "rejected"
-			plan.UpdatedAt = now()
-			job.PlanStatus = "rejected"
-			job.UpdatedAt = now()
-			return true
-		}
-	}
-	return false
-}
-
-func (s *Store) CreateProcessingJob(docID, graphID, jobType string) *domain.DocumentProcessingJob {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	doc, ok := s.documents[docID]
-	if !ok {
-		return nil
-	}
-	jobID := newID()
-	capability := domain.DefaultJobCapability(jobID, doc.WorkspaceID, graphID, docID, time.Now().UTC())
-	job := &domain.DocumentProcessingJob{
-		JobID:            jobID,
-		DocumentID:       docID,
-		GraphID:          graphID,
-		JobType:          jobType,
-		Status:           "queued",
-		RequestedBy:      "system",
-		CapabilityID:     capability.CapabilityID,
-		ExecutionPlanID:  "plan_" + jobID,
-		PlanStatus:       "approved",
-		EvaluationStatus: "pending",
-		BudgetJSON:       `{"max_llm_calls":128,"max_tool_runs":0,"max_node_creations":4096,"max_edge_mutations":4096}`,
-		CreatedAt:        now(),
-		UpdatedAt:        now(),
-	}
-	s.jobs[job.JobID] = job
-	s.jobCapabilities[job.JobID] = capability
-	s.jobExecutionPlans[job.JobID] = &domain.JobExecutionPlan{
-		PlanID:    job.ExecutionPlanID,
-		JobID:     job.JobID,
-		Status:    "approved",
-		Summary:   "default document processing pipeline",
-		PlanJSON:  `{"summary":"default document processing pipeline","steps":[{"title":"document_pipeline","risk_tier":"tier_1"}]}`,
-		CreatedBy: "planner",
-		CreatedAt: job.CreatedAt,
-		UpdatedAt: job.UpdatedAt,
-	}
-
-	// Mock behavior: immediately attach sample nodes and edges to the graph.
-	if graphID != "" {
-		if !s.hasNonWorkspaceNodesLocked(graphID) {
-			rootID, _ := s.getWorkspaceRootNodeIDLocked(graphID)
-			s.nodes[graphID] = append(s.nodes[graphID], cloneSalesNodes(graphID)...)
-			s.edges[graphID] = append(s.edges[graphID], cloneSalesEdges(graphID)...)
-			if rootID != "" {
-				s.edges[graphID] = append(s.edges[graphID], &domain.Edge{
-					EdgeID:       newID(),
-					GraphID:      graphID,
-					SourceNodeID: rootID,
-					TargetNodeID: "nd_root",
-					EdgeType:     "hierarchical",
-					CreatedAt:    now(),
-				})
-			}
-		}
-	}
-	return job
-}
-
-func (s *Store) MarkProcessingJobRunning(jobID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return false
-	}
-	job.Status = "running"
-	job.ErrorMessage = ""
-	if job.PlanStatus == "" {
-		job.PlanStatus = "executing"
-	}
-	job.UpdatedAt = now()
-	return true
-}
-
-func (s *Store) UpdateProcessingJobStage(jobID, stage string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return false
-	}
-	job.CurrentStage = stage
-	job.UpdatedAt = now()
-	return true
-}
-
-func (s *Store) FailProcessingJob(jobID, errorMessage string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return false
-	}
-	job.Status = "failed"
-	job.ErrorMessage = errorMessage
-	job.EvaluationStatus = "failed"
-	job.UpdatedAt = now()
-	return true
-}
-
-func (s *Store) CompleteProcessingJob(jobID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	job, ok := s.jobs[jobID]
-	if !ok {
-		return false
-	}
-	job.Status = "completed"
-	job.PlanStatus = "completed"
-	job.EvaluationStatus = "passed"
-	job.UpdatedAt = now()
-	return true
-}
-
+func (s *Store) MarkProcessingJobRunning(jobID string) bool        { return true }
+func (s *Store) UpdateProcessingJobStage(jobID, stage string) bool { return true }
+func (s *Store) FailProcessingJob(jobID, errorMessage string) bool { return true }
+func (s *Store) CompleteProcessingJob(jobID string) bool           { return true }
 func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.documentChunks[documentID] = chunks
 	return nil
 }
 
-// ─── Graph ────────────────────────────────────────────────────────────────────
-
-func (s *Store) GetOrCreateGraph(wsID string) (*domain.Graph, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, g := range s.graphs {
-		if g.WorkspaceID == wsID {
-			return g, nil
-		}
-	}
-	g := &domain.Graph{
-		GraphID:     newID(),
-		WorkspaceID: wsID,
-		Name:        "default",
-		CreatedAt:   now(),
-		UpdatedAt:   now(),
-	}
-	s.graphs[g.GraphID] = g
-	return g, nil
+// TreeRepository
+func (s *Store) GetOrCreateTree(wsID string) (*domain.Tree, error) {
+	return &domain.Tree{TreeID: wsID, WorkspaceID: wsID, Name: "default"}, nil
 }
 
-func (s *Store) GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool) {
+func (s *Store) GetTreeByWorkspace(wsID string) ([]*domain.Item, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var graphID string
-	for _, g := range s.graphs {
-		if g.WorkspaceID == wsID {
-			graphID = g.GraphID
+	wsItems, ok := s.items[wsID]
+	if !ok {
+		return nil, false
+	}
+	var res []*domain.Item
+	for _, n := range wsItems {
+		res = append(res, n)
+	}
+	return res, true
+}
+
+func (s *Store) GetWorkspaceRootItemID(wsID string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	wsItems, ok := s.items[wsID]
+	if !ok {
+		return "", false
+	}
+	for _, n := range wsItems {
+		if n.ParentID == "" {
+			return n.ItemID, true
+		}
+	}
+	return "", false
+}
+
+func (s *Store) FindPaths(wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool) {
+	items, ok := s.GetTreeByWorkspace(wsID)
+	if !ok {
+		return nil, nil, false
+	}
+	return items, nil, true
+}
+
+func (s *Store) GetSubtree(rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var res []*domain.SubtreeItem
+	var root *domain.Item
+	var workspaceID string
+
+	// Find the root item and its workspace
+	for wsID, wsItems := range s.items {
+		if n, ok := wsItems[rootItemID]; ok {
+			root = n
+			workspaceID = wsID
 			break
 		}
 	}
-	if graphID == "" {
-		return nil, nil, false
+
+	if root == nil {
+		return nil, fmt.Errorf("root item not found")
 	}
-	return s.nodes[graphID], s.edges[graphID], true
+
+	res = append(res, &domain.SubtreeItem{Item: *root})
+
+	// Find direct children
+	for _, n := range s.items[workspaceID] {
+		if n.ParentID == rootItemID {
+			res = append(res, &domain.SubtreeItem{Item: *n})
+		}
+	}
+
+	return res, nil
 }
 
-func (s *Store) GetWorkspaceRootNodeID(graphID string) (string, bool) {
+// ItemRepository
+func (s *Store) GetItem(itemID string) (*domain.Item, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.getWorkspaceRootNodeIDLocked(graphID)
+	for _, wsItems := range s.items {
+		if n, ok := wsItems[itemID]; ok {
+			return n, true
+		}
+	}
+	return nil, false
 }
 
-func (s *Store) FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool) {
-	s.mu.RLock()
-	nodes := s.nodes[graphID]
-	edges := s.edges[graphID]
-	s.mu.RUnlock()
-
-	if len(nodes) == 0 {
-		return nil, nil, nil, false
-	}
-	if maxDepth <= 0 {
-		maxDepth = 4
-	}
-	if limit <= 0 {
-		limit = 3
-	}
-
-	nodeByID := make(map[string]*domain.Node, len(nodes))
-	for _, node := range nodes {
-		nodeByID[node.NodeID] = node
-	}
-	if nodeByID[sourceNodeID] == nil || nodeByID[targetNodeID] == nil {
-		return nil, nil, nil, false
-	}
-
-	adj := make(map[string][]string)
-	for _, edge := range edges {
-		adj[edge.SourceNodeID] = append(adj[edge.SourceNodeID], edge.TargetNodeID)
-		adj[edge.TargetNodeID] = append(adj[edge.TargetNodeID], edge.SourceNodeID)
-	}
-
-	type item struct {
-		nodeID string
-		path   []string
-	}
-	queue := []item{{nodeID: sourceNodeID, path: []string{sourceNodeID}}}
-	var paths []domain.GraphPath
-	seenPaths := make(map[string]bool)
-
-	for len(queue) > 0 && len(paths) < limit {
-		cur := queue[0]
-		queue = queue[1:]
-		if len(cur.path)-1 > maxDepth {
-			continue
-		}
-		if cur.nodeID == targetNodeID {
-			key := fmt.Sprint(cur.path)
-			if seenPaths[key] {
-				continue
-			}
-			seenPaths[key] = true
-			path := domain.GraphPath{
-				NodeIDs:  append([]string(nil), cur.path...),
-				HopCount: len(cur.path) - 1,
-			}
-			paths = append(paths, path)
-			continue
-		}
-		for _, next := range adj[cur.nodeID] {
-			if contains(cur.path, next) {
-				continue
-			}
-			nextPath := append(append([]string(nil), cur.path...), next)
-			queue = append(queue, item{nodeID: next, path: nextPath})
-		}
-	}
-
-	return nodes, edges, paths, true
-}
-
-func (s *Store) GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	nodeByID := make(map[string]*domain.Node)
-	for _, ns := range s.nodes {
-		for _, n := range ns {
-			nodeByID[n.NodeID] = n
-		}
-	}
-	childMap := make(map[string][]string)
-	allEdges := make(map[string]*domain.Edge)
-	for _, es := range s.edges {
-		for _, e := range es {
-			if e.EdgeType == "hierarchical" {
-				childMap[e.SourceNodeID] = append(childMap[e.SourceNodeID], e.TargetNodeID)
-				allEdges[e.EdgeID] = e
-			}
-		}
-	}
-
-	visited := make(map[string]int)
-	queue := []struct {
-		id    string
-		depth int
-	}{{id: rootNodeID, depth: 0}}
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		if _, seen := visited[cur.id]; seen {
-			continue
-		}
-		visited[cur.id] = cur.depth
-		if cur.depth < maxDepth {
-			for _, child := range childMap[cur.id] {
-				queue = append(queue, struct {
-					id    string
-					depth int
-				}{id: child, depth: cur.depth + 1})
-			}
-		}
-	}
-
-	var nodes []*domain.SubtreeNode
-	for id := range visited {
-		n := nodeByID[id]
-		if n == nil {
-			continue
-		}
-		nodes = append(nodes, &domain.SubtreeNode{
-			Node:        *n,
-			HasChildren: len(childMap[id]) > 0,
-		})
-	}
-	var edges []*domain.Edge
-	for _, e := range allEdges {
-		if _, srcIn := visited[e.SourceNodeID]; srcIn {
-			if _, tgtIn := visited[e.TargetNodeID]; tgtIn {
-				edges = append(edges, e)
-			}
-		}
-	}
-	return nodes, edges, nil
-}
-
-// ─── Node ─────────────────────────────────────────────────────────────────────
-
-func (s *Store) GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, nodes := range s.nodes {
-		for _, n := range nodes {
-			if n.NodeID == nodeID {
-				var related []*domain.Edge
-				for _, edges := range s.edges {
-					for _, e := range edges {
-						if e.SourceNodeID == nodeID || e.TargetNodeID == nodeID {
-							related = append(related, e)
-						}
-					}
-				}
-				return n, related, true
-			}
-		}
-	}
-	return nil, nil, false
-}
-
-func (s *Store) CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node {
-	node := s.createStructuredNodeDirect(graphID, label, 0, description, "", createdBy)
-	if node == nil || parentNodeID == "" {
-		return node
-	}
-	if s.createEdgeDirect(graphID, parentNodeID, node.NodeID, "hierarchical", "") == nil {
-		return nil
-	}
-	return node
-}
-
-func (s *Store) createStructuredNodeDirect(graphID, label string, level int, description, summaryHTML, createdBy string) *domain.Node {
+func (s *Store) CreateItem(workspaceID, label, description, parentID, createdBy string) *domain.Item {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	n := &domain.Node{
-		NodeID:          newID(),
-		GraphID:         graphID,
-		Label:           label,
-		Level:           level,
-		Description:     description,
-		SummaryHTML:     summaryHTML,
-		CreatedBy:       createdBy,
-		GovernanceState: string(domain.NodeGovernanceStateSystemGenerated),
-		CreatedAt:       now(),
+	if _, ok := s.items[workspaceID]; !ok {
+		s.items[workspaceID] = make(map[string]*domain.Item)
 	}
-	s.nodes[graphID] = append(s.nodes[graphID], n)
+	n := &domain.Item{
+		ItemID:      "item-" + label,
+		WorkspaceID: workspaceID,
+		ParentID:    parentID,
+		Label:       label,
+		Description: description,
+		CreatedBy:   createdBy,
+		CreatedAt:   time.Now().Format(time.RFC3339),
+	}
+	s.items[workspaceID][n.ItemID] = n
 	return n
 }
 
-func (s *Store) CreateStructuredNodeWithCapability(capability *domain.JobCapability, jobID, documentID, graphID, label string, level int, description, summaryHTML, createdBy string, sourceChunkIDs []string) *domain.Node {
-	if !allowsMutation(capability, domain.JobOperationCreateNode, graphID, documentID) {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if capability.MaxNodeCreations > 0 && len(s.jobMutationLogs[jobID]) >= capability.MaxNodeCreations {
-		return nil
-	}
-	node := &domain.Node{
-		NodeID:            newID(),
-		GraphID:           graphID,
-		Label:             label,
-		Level:             level,
-		Description:       description,
-		SummaryHTML:       summaryHTML,
-		CreatedBy:         createdBy,
-		GovernanceState:   string(domain.NodeGovernanceStateSystemGenerated),
-		LastMutationJobID: jobID,
-		CreatedAt:         now(),
-	}
-	s.nodes[graphID] = append(s.nodes[graphID], node)
-	s.jobMutationLogs[jobID] = append(s.jobMutationLogs[jobID], &domain.JobMutationLog{
-		MutationID:     newID(),
-		JobID:          jobID,
-		CapabilityID:   capability.CapabilityID,
-		GraphID:        graphID,
-		TargetType:     "node",
-		TargetID:       node.NodeID,
-		MutationType:   "append",
-		RiskTier:       "tier_1",
-		BeforeJSON:     "{}",
-		AfterJSON:      `{"node_id":"` + node.NodeID + `"}`,
-		ProvenanceJSON: `{"document_id":"` + documentID + `"}`,
-		CreatedAt:      now(),
-	})
-	return node
+func (s *Store) CreateStructuredItemWithCapability(capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
+	return s.CreateItem(workspaceID, label, description, parentID, createdBy)
 }
 
-func (s *Store) UpsertNodeSource(_, _, _, _ string, _ float64) error {
-	// No-op in the mock store.
+func (s *Store) UpsertItemSource(itemID, documentID, chunkID, sourceText string, confidence float64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sources[itemID] = append(s.sources[itemID], &domain.ItemSource{
+		ItemID:     itemID,
+		DocumentID: documentID,
+		ChunkID:    chunkID,
+		SourceText: sourceText,
+		Confidence: confidence,
+	})
 	return nil
 }
 
-func (s *Store) createEdgeDirect(graphID, sourceNodeID, targetNodeID, edgeType, description string) *domain.Edge {
+func (s *Store) UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := &domain.Edge{
-		EdgeID:       newID(),
-		GraphID:      graphID,
-		SourceNodeID: sourceNodeID,
-		TargetNodeID: targetNodeID,
-		EdgeType:     edgeType,
-		Description:  description,
-		CreatedAt:    now(),
-	}
-	s.edges[graphID] = append(s.edges[graphID], e)
-	return e
-}
-
-func (s *Store) CreateEdgeWithCapability(capability *domain.JobCapability, jobID, documentID, graphID, sourceNodeID, targetNodeID, edgeType, description string, sourceChunkIDs []string) *domain.Edge {
-	if !allowsMutation(capability, domain.JobOperationCreateEdge, graphID, documentID) {
-		return nil
-	}
-	if !capability.AllowsNode(sourceNodeID) || !capability.AllowsNode(targetNodeID) {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	edge := &domain.Edge{
-		EdgeID:       newID(),
-		GraphID:      graphID,
-		SourceNodeID: sourceNodeID,
-		TargetNodeID: targetNodeID,
-		EdgeType:     edgeType,
-		Description:  description,
-		CreatedAt:    now(),
-	}
-	s.edges[graphID] = append(s.edges[graphID], edge)
-	s.jobMutationLogs[jobID] = append(s.jobMutationLogs[jobID], &domain.JobMutationLog{
-		MutationID:     newID(),
-		JobID:          jobID,
-		CapabilityID:   capability.CapabilityID,
-		GraphID:        graphID,
-		TargetType:     "edge",
-		TargetID:       edge.EdgeID,
-		MutationType:   "append",
-		RiskTier:       "tier_1",
-		BeforeJSON:     "{}",
-		AfterJSON:      `{"edge_id":"` + edge.EdgeID + `"}`,
-		ProvenanceJSON: `{"document_id":"` + documentID + `"}`,
-		CreatedAt:      now(),
-	})
-	return edge
-}
-
-func (s *Store) UpsertEdgeSource(_, _, _, _ string, _ float64) error {
-	return nil
-}
-
-func (s *Store) UpdateNodeSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, nodeID, summaryHTML string) bool {
-	if capability == nil || !capability.Allows(domain.JobOperationUpdateNode) || capability.IsExpired(time.Now().UTC()) {
-		return false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, nodes := range s.nodes {
-		for _, node := range nodes {
-			if node.NodeID != nodeID {
-				continue
-			}
-			if node.GovernanceState == string(domain.NodeGovernanceStateHumanCurated) || node.GovernanceState == string(domain.NodeGovernanceStateLocked) {
-				return false
-			}
-			before := node.SummaryHTML
-			node.SummaryHTML = summaryHTML
-			node.LastMutationJobID = jobID
-			s.jobMutationLogs[jobID] = append(s.jobMutationLogs[jobID], &domain.JobMutationLog{
-				MutationID:     newID(),
-				JobID:          jobID,
-				CapabilityID:   capability.CapabilityID,
-				GraphID:        node.GraphID,
-				TargetType:     "node",
-				TargetID:       nodeID,
-				MutationType:   "revise",
-				RiskTier:       "tier_1",
-				BeforeJSON:     `{"summary_html":"` + before + `"}`,
-				AfterJSON:      `{"summary_html":"` + summaryHTML + `"}`,
-				ProvenanceJSON: `{"field":"summary_html"}`,
-				CreatedAt:      now(),
-			})
+	for _, wsItems := range s.items {
+		if n, ok := wsItems[itemID]; ok {
+			n.SummaryHTML = summaryHTML
 			return true
 		}
 	}
 	return false
 }
 
-func (s *Store) ApproveAlias(wsID, canonicalNodeID, aliasNodeID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.workspaceExists(wsID) || !s.nodeExists(canonicalNodeID) || !s.nodeExists(aliasNodeID) {
-		return false
-	}
-	s.aliases[aliasNodeID] = canonicalNodeID
-	return true
-}
+func (s *Store) ApproveAlias(wsID, canonicalItemID, aliasItemID string) bool { return true }
+func (s *Store) RejectAlias(wsID, canonicalItemID, aliasItemID string) bool  { return true }
 
-func (s *Store) RejectAlias(wsID, canonicalNodeID, aliasNodeID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.workspaceExists(wsID) || !s.nodeExists(canonicalNodeID) || !s.nodeExists(aliasNodeID) {
-		return false
-	}
-	delete(s.aliases, aliasNodeID)
-	return true
-}
+var _ repository.AccountRepository = (*Store)(nil)
+var _ repository.WorkspaceRepository = (*Store)(nil)
+var _ repository.DocumentRepository = (*Store)(nil)
+var _ repository.TreeRepository = (*Store)(nil)
+var _ repository.ItemRepository = (*Store)(nil)
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
-
-func cloneSalesNodes(graphID string) []*domain.Node {
-	n := now()
-	return []*domain.Node{
-		{NodeID: "nd_root", GraphID: graphID, Label: "販売戦略", Description: "当期における販売拡大の最上位方針", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
-		{NodeID: "nd_tel", GraphID: graphID, Label: "テレアポ施策", Description: "月次100件を目標とした架電施策", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
-		{NodeID: "nd_sns", GraphID: graphID, Label: "SNS施策", Description: "SNSを活用したブランド認知向上施策", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
-		{NodeID: "nd_cv", GraphID: graphID, Label: "CV率 3.2%", Description: "テレアポの成約率", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
-		{NodeID: "nd_script", GraphID: graphID, Label: "スクリプト改善", Description: "架電品質向上のためのトークスクリプト見直し施策", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
-		{NodeID: "nd_roi", GraphID: graphID, Label: "ROI比較", Description: "テレアポとSNSの投資対効果比較。SNSのROIが2.3倍高い", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
-		{NodeID: "nd_counter", GraphID: graphID, Label: "テレアポ不要論", Description: "SNSのROIが高いことからテレアポへの投資削減を主張する反論", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
-		{NodeID: "nd_evidence", GraphID: graphID, Label: "A社事例", Description: "競合A社がSNSマーケティングを強化し、新規リード獲得180%を達成した事例", GovernanceState: string(domain.NodeGovernanceStateSystemGenerated), CreatedAt: n},
+func parseJobType(s string) treev1.JobType {
+	switch s {
+	case "process_document":
+		return treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
+	case "reprocess_document":
+		return treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
+	default:
+		return treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
 	}
-}
-
-func cloneSalesEdges(graphID string) []*domain.Edge {
-	n := now()
-	return []*domain.Edge{
-		{EdgeID: "ed_01", GraphID: graphID, SourceNodeID: "nd_root", TargetNodeID: "nd_tel", EdgeType: "hierarchical", CreatedAt: n},
-		{EdgeID: "ed_02", GraphID: graphID, SourceNodeID: "nd_root", TargetNodeID: "nd_sns", EdgeType: "hierarchical", CreatedAt: n},
-		{EdgeID: "ed_03", GraphID: graphID, SourceNodeID: "nd_tel", TargetNodeID: "nd_cv", EdgeType: "hierarchical", CreatedAt: n},
-		{EdgeID: "ed_04", GraphID: graphID, SourceNodeID: "nd_tel", TargetNodeID: "nd_script", EdgeType: "hierarchical", CreatedAt: n},
-		{EdgeID: "ed_05", GraphID: graphID, SourceNodeID: "nd_tel", TargetNodeID: "nd_counter", EdgeType: "hierarchical", CreatedAt: n},
-		{EdgeID: "ed_06", GraphID: graphID, SourceNodeID: "nd_sns", TargetNodeID: "nd_roi", EdgeType: "hierarchical", CreatedAt: n},
-		{EdgeID: "ed_07", GraphID: graphID, SourceNodeID: "nd_sns", TargetNodeID: "nd_evidence", EdgeType: "hierarchical", CreatedAt: n},
-		{EdgeID: "ed_08", GraphID: graphID, SourceNodeID: "nd_cv", TargetNodeID: "nd_roi", EdgeType: "measured_by", CreatedAt: n},
-		{EdgeID: "ed_09", GraphID: graphID, SourceNodeID: "nd_counter", TargetNodeID: "nd_tel", EdgeType: "contradicts", CreatedAt: n},
-		{EdgeID: "ed_10", GraphID: graphID, SourceNodeID: "nd_evidence", TargetNodeID: "nd_roi", EdgeType: "supports", CreatedAt: n},
-	}
-}
-
-func (s *Store) workspaceExists(wsID string) bool {
-	_, ok := s.workspaces[wsID]
-	return ok
-}
-
-func (s *Store) nodeExists(nodeID string) bool {
-	for _, nodes := range s.nodes {
-		for _, node := range nodes {
-			if node.NodeID == nodeID {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func allowsMutation(capability *domain.JobCapability, op domain.JobOperation, graphID, documentID string) bool {
-	if capability == nil || capability.IsExpired(time.Now().UTC()) {
-		return false
-	}
-	if !capability.Allows(op) {
-		return false
-	}
-	if capability.GraphID != "" && capability.GraphID != graphID {
-		return false
-	}
-	return capability.AllowsDocument(documentID)
-}
-
-func (s *Store) getWorkspaceRootNodeIDLocked(graphID string) (string, bool) {
-	nodes := s.nodes[graphID]
-	for _, node := range nodes {
-		if node.Level == 0 && node.CreatedBy == "system" {
-			return node.NodeID, true
-		}
-	}
-	if len(nodes) == 0 {
-		return "", false
-	}
-	return nodes[0].NodeID, true
-}
-
-func (s *Store) hasNonWorkspaceNodesLocked(graphID string) bool {
-	for _, node := range s.nodes[graphID] {
-		if !(node.Level == 0 && node.CreatedBy == "system") {
-			return true
-		}
-	}
-	return false
-}
-
-func contains(ids []string, target string) bool {
-	for _, id := range ids {
-		if id == target {
-			return true
-		}
-	}
-	return false
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }

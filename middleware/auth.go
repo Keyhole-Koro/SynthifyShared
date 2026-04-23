@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
@@ -25,6 +26,28 @@ func CurrentUser(ctx context.Context) (AuthUser, bool) {
 }
 
 func WithAuth(projectID string, next http.Handler) http.Handler {
+	if e2eAuthEnabled() {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			userID := strings.TrimSpace(r.Header.Get("X-E2E-User-Id"))
+			if userID == "" {
+				http.Error(w, "missing e2e user header", http.StatusUnauthorized)
+				return
+			}
+
+			user := AuthUser{
+				ID:    userID,
+				Email: strings.TrimSpace(r.Header.Get("X-E2E-User-Email")),
+			}
+			ctx := context.WithValue(r.Context(), authUserContextKey, user)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+
 	client, err := newFirebaseAuthClient(projectID)
 	if err != nil {
 		panic(err)
@@ -81,4 +104,13 @@ func bearerToken(header string) string {
 		return ""
 	}
 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
+}
+
+func e2eAuthEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("E2E_AUTH_ENABLED"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

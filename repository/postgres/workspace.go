@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -28,7 +29,17 @@ func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
 	// Return the existing account if present.
 	existing, err := s.q().GetAccountByUser(ctx, userID)
 	if err == nil {
-		acct := toAccount(existing)
+		acct := toAccount(sqlcgen.Account{
+			AccountID:          existing.AccountID,
+			Name:               existing.Name,
+			Plan:               existing.Plan,
+			StorageQuotaBytes:  existing.StorageQuotaBytes,
+			StorageUsedBytes:   existing.StorageUsedBytes,
+			MaxFileSizeBytes:   existing.MaxFileSizeBytes,
+			MaxUploadsPer5h:    existing.MaxUploadsPer5h,
+			MaxUploadsPer1week: existing.MaxUploadsPer1week,
+			CreatedAt:          existing.CreatedAt,
+		})
 		return acct, nil
 	}
 
@@ -41,8 +52,8 @@ func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
 		Plan:               "registered",
 		StorageQuotaBytes:  defaultRegisteredPlan.StorageQuotaBytes,
 		MaxFileSizeBytes:   defaultRegisteredPlan.MaxFileSizeBytes,
-		MaxUploadsPer5h:    defaultRegisteredPlan.MaxUploadsPer5h,
-		MaxUploadsPer1week: defaultRegisteredPlan.MaxUploadsPerWeek,
+		MaxUploadsPer5h:    int32(defaultRegisteredPlan.MaxUploadsPer5h),
+		MaxUploadsPer1week: int32(defaultRegisteredPlan.MaxUploadsPerWeek),
 		CreatedAt:          createdAt,
 	})
 	if err != nil {
@@ -56,7 +67,17 @@ func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
 		JoinedAt:  createdAt,
 	})
 
-	return toAccount(row), nil
+	return toAccount(sqlcgen.Account{
+		AccountID:          row.AccountID,
+		Name:               row.Name,
+		Plan:               row.Plan,
+		StorageQuotaBytes:  row.StorageQuotaBytes,
+		StorageUsedBytes:   row.StorageUsedBytes,
+		MaxFileSizeBytes:   row.MaxFileSizeBytes,
+		MaxUploadsPer5h:    row.MaxUploadsPer5h,
+		MaxUploadsPer1week: row.MaxUploadsPer1week,
+		CreatedAt:          row.CreatedAt,
+	}), nil
 }
 
 func (s *Store) GetAccount(accountID string) (*domain.Account, error) {
@@ -64,7 +85,17 @@ func (s *Store) GetAccount(accountID string) (*domain.Account, error) {
 	if err != nil {
 		return nil, err
 	}
-	return toAccount(row), nil
+	return toAccount(sqlcgen.Account{
+		AccountID:          row.AccountID,
+		Name:               row.Name,
+		Plan:               row.Plan,
+		StorageQuotaBytes:  row.StorageQuotaBytes,
+		StorageUsedBytes:   row.StorageUsedBytes,
+		MaxFileSizeBytes:   row.MaxFileSizeBytes,
+		MaxUploadsPer5h:    row.MaxUploadsPer5h,
+		MaxUploadsPer1week: row.MaxUploadsPer1week,
+		CreatedAt:          row.CreatedAt,
+	}), nil
 }
 
 func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
@@ -74,12 +105,12 @@ func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
 	}
 	var workspaces []*domain.Workspace
 	for _, row := range rows {
-		rootNodeID, _ := s.GetWorkspaceRootNodeIDByWorkspace(row.WorkspaceID)
+		rootItemID, _ := s.GetWorkspaceRootItemIDByWorkspace(row.WorkspaceID)
 		workspaces = append(workspaces, &domain.Workspace{
 			WorkspaceID: row.WorkspaceID,
 			AccountID:   row.AccountID,
 			Name:        row.Name,
-			RootNodeID:  rootNodeID,
+			RootItemID:  rootItemID,
 			CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
 		})
 	}
@@ -91,8 +122,13 @@ func (s *Store) GetWorkspace(id string) (*domain.Workspace, bool) {
 	if err != nil {
 		return nil, false
 	}
-	ws := toWorkspace(row)
-	ws.RootNodeID, _ = s.GetWorkspaceRootNodeIDByWorkspace(id)
+	ws := toWorkspace(sqlcgen.Workspace{
+		WorkspaceID: row.WorkspaceID,
+		AccountID:   row.AccountID,
+		Name:        row.Name,
+		CreatedAt:   row.CreatedAt,
+	})
+	ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(id)
 	return ws, true
 }
 
@@ -107,8 +143,7 @@ func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool {
 func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	createdAt := nowTime()
 	wsID := newID()
-	graphID := newID()
-	rootNodeID := newID()
+	rootItemID := newID()
 	ctx := context.Background()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -125,19 +160,17 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	}); err != nil {
 		return nil
 	}
-	graph, err := qtx.GetOrCreateGraph(ctx, sqlcgen.GetOrCreateGraphParams{
-		GraphID:     graphID,
+	if err := qtx.CreateItem(ctx, sqlcgen.CreateItemParams{
+		ID:          rootItemID,
 		WorkspaceID: wsID,
-		Name:        "default",
+		ParentID:    sql.NullString{},
+		Label:       name,
+		Level:       0,
+		Description: "Workspace root",
+		SummaryHtml: "",
+		CreatedBy:   "system",
 		CreatedAt:   createdAt,
-	})
-	if err != nil {
-		return nil
-	}
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO nodes (node_id, graph_id, label, category, level, description, summary_html, created_by, created_at)
-		VALUES ($1, $2, $3, '', 0, $4, '', $5, $6)
-	`, rootNodeID, graph.GraphID, name, "Workspace root", "system", createdAt); err != nil {
+	}); err != nil {
 		return nil
 	}
 	if err := tx.Commit(); err != nil {
@@ -147,15 +180,15 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 		WorkspaceID: wsID,
 		AccountID:   accountID,
 		Name:        name,
-		RootNodeID:  rootNodeID,
+		RootItemID:  rootItemID,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
 }
 
-func (s *Store) GetWorkspaceRootNodeIDByWorkspace(workspaceID string) (string, bool) {
-	row, err := s.q().GetGraphByWorkspace(context.Background(), workspaceID)
+func (s *Store) GetWorkspaceRootItemIDByWorkspace(workspaceID string) (string, bool) {
+	row, err := s.q().GetTreeRoot(context.Background(), workspaceID)
 	if err != nil {
 		return "", false
 	}
-	return s.GetWorkspaceRootNodeID(row.GraphID)
+	return row.ID, true
 }

@@ -19,6 +19,8 @@ type WorkspaceRepository interface {
 type DocumentRepository interface {
 	ListDocuments(wsID string) []*domain.Document
 	GetDocument(id string) (*domain.Document, bool)
+	GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool)
+	GetJobPlanningSignals(documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool)
 	CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
 	GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool)
 	GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool)
@@ -30,7 +32,7 @@ type DocumentRepository interface {
 	RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
 	ApproveJobApproval(jobID, approvalID, reviewedBy string) bool
 	RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool
-	CreateProcessingJob(docID, graphID, jobType string) *domain.DocumentProcessingJob
+	CreateProcessingJob(docID, workspaceID, jobType string) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(jobID string) bool
 	UpdateProcessingJobStage(jobID, stage string) bool
 	FailProcessingJob(jobID, errorMessage string) bool
@@ -38,22 +40,20 @@ type DocumentRepository interface {
 	SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error
 }
 
-type GraphRepository interface {
-	GetOrCreateGraph(wsID string) (*domain.Graph, error)
-	GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool)
-	GetWorkspaceRootNodeID(graphID string) (string, bool)
-	FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool)
-	GetSubtree(rootNodeID string, maxDepth int) ([]*domain.SubtreeNode, []*domain.Edge, error)
+type TreeRepository interface {
+	GetOrCreateTree(wsID string) (*domain.Tree, error)
+	GetTreeByWorkspace(wsID string) ([]*domain.Item, bool)
+	GetWorkspaceRootItemID(wsID string) (string, bool)
+	FindPaths(wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool)
+	GetSubtree(rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
 }
 
-type NodeRepository interface {
-	GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool)
-	CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node
-	CreateStructuredNodeWithCapability(capability *domain.JobCapability, jobID, documentID, graphID, label string, level int, description, summaryHTML, createdBy string, sourceChunkIDs []string) *domain.Node
-	CreateEdgeWithCapability(capability *domain.JobCapability, jobID, documentID, graphID, sourceNodeID, targetNodeID, edgeType, description string, sourceChunkIDs []string) *domain.Edge
-	UpsertNodeSource(nodeID, documentID, chunkID, sourceText string, confidence float64) error
-	UpsertEdgeSource(edgeID, documentID, chunkID, sourceText string, confidence float64) error
-	UpdateNodeSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, nodeID, summaryHTML string) bool
-	ApproveAlias(wsID, canonicalNodeID, aliasNodeID string) bool
-	RejectAlias(wsID, canonicalNodeID, aliasNodeID string) bool
+type ItemRepository interface {
+	GetItem(itemID string) (*domain.Item, bool)
+	CreateItem(workspaceID, label, description, parentID, createdBy string) *domain.Item
+	CreateStructuredItemWithCapability(capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item
+	UpsertItemSource(itemID, documentID, chunkID, sourceText string, confidence float64) error
+	UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool
+	ApproveAlias(wsID, canonicalItemID, aliasItemID string) bool
+	RejectAlias(wsID, canonicalItemID, aliasItemID string) bool
 }

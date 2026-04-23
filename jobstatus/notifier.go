@@ -14,7 +14,7 @@ type Payload struct {
 	JobType     string
 	DocumentID  string
 	WorkspaceID string
-	GraphID     string
+	TreeID      string
 }
 
 type Notifier interface {
@@ -104,7 +104,7 @@ func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields m
 		"jobType":     payload.JobType,
 		"documentId":  payload.DocumentID,
 		"workspaceId": payload.WorkspaceID,
-		"graphId":     payload.GraphID,
+		"treeId":      payload.TreeID,
 	}
 	for key, value := range fields {
 		doc[key] = value

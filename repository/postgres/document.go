@@ -2,12 +2,14 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
+	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
 	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
 )
 
@@ -16,7 +18,8 @@ func (s *Store) ListDocuments(wsID string) []*domain.Document {
 	if err != nil {
 		return nil
 	}
-	var docs []*domain.Document
+
+	docs := make([]*domain.Document, 0, len(rows))
 	for _, row := range rows {
 		docs = append(docs, toDocument(row))
 	}
@@ -29,6 +32,56 @@ func (s *Store) GetDocument(id string) (*domain.Document, bool) {
 		return nil, false
 	}
 	return toDocument(row), true
+}
+
+func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool) {
+	rows, err := s.q().ListDocumentChunks(context.Background(), documentID)
+	if err != nil {
+		return nil, false
+	}
+
+	chunks := make([]*domain.DocumentChunk, 0, len(rows))
+	for _, row := range rows {
+		chunks = append(chunks, toDocumentChunk(row))
+	}
+	return chunks, true
+}
+
+func (s *Store) GetJobPlanningSignals(documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
+	signals := &domain.JobPlanningSignals{
+		DocumentID:  documentID,
+		WorkspaceID: workspaceID,
+	}
+	if strings.TrimSpace(documentID) == "" || strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(treeID) == "" {
+		return signals, true
+	}
+
+	sameDocumentItemCount, err := s.q().CountSameDocumentItems(context.Background(), sqlcgen.CountSameDocumentItemsParams{
+		DocumentID:  documentID,
+		WorkspaceID: treeID,
+	})
+	if err != nil {
+		return nil, false
+	}
+	approvedAliasCount, err := s.q().CountApprovedAliases(context.Background(), sqlcgen.CountApprovedAliasesParams{
+		WorkspaceID:   workspaceID,
+		WorkspaceID_2: treeID,
+	})
+	if err != nil {
+		return nil, false
+	}
+	protectedAliasCount, err := s.q().CountProtectedAliases(context.Background(), sqlcgen.CountProtectedAliasesParams{
+		WorkspaceID:   workspaceID,
+		WorkspaceID_2: treeID,
+	})
+	if err != nil {
+		return nil, false
+	}
+
+	signals.SameDocumentItemCount = int(sameDocumentItemCount)
+	signals.ApprovedAliasCount = int(approvedAliasCount)
+	signals.ProtectedAliasCount = int(protectedAliasCount)
+	return signals, true
 }
 
 func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
@@ -58,114 +111,46 @@ func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, file
 }
 
 func (s *Store) GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool) {
-	row := s.db.QueryRowContext(context.Background(), `
-		SELECT job_id, document_id, COALESCE(graph_id, ''), job_type, status, current_stage, error_message, params_json,
-		       requested_by, capability_id, execution_plan_id, plan_status, evaluation_status, retry_count, budget_json,
-		       created_at, updated_at
-		FROM document_processing_jobs
-		WHERE document_id = $1
-		ORDER BY created_at DESC
-		LIMIT 1
-	`, docID)
-	job, err := scanProcessingJob(row)
+	row, err := s.q().GetLatestProcessingJob(context.Background(), docID)
 	if err != nil {
 		return nil, false
 	}
-	return job, true
+	return toProcessingJob(row), true
 }
 
 func (s *Store) GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool) {
-	row := s.db.QueryRowContext(context.Background(), `
-		SELECT job_id, document_id, COALESCE(graph_id, ''), job_type, status, current_stage, error_message, params_json,
-		       requested_by, capability_id, execution_plan_id, plan_status, evaluation_status, retry_count, budget_json,
-		       created_at, updated_at
-		FROM document_processing_jobs
-		WHERE job_id = $1
-	`, jobID)
-	job, err := scanProcessingJob(row)
+	row, err := s.q().GetProcessingJob(context.Background(), jobID)
 	if err != nil {
 		return nil, false
 	}
-	return job, true
+	return toProcessingJob(row), true
 }
 
 func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
-	row := s.db.QueryRowContext(context.Background(), `
-		SELECT capability_id, job_id, workspace_id, graph_id, allowed_document_ids_json, allowed_node_ids_json,
-		       allowed_operations_json, max_llm_calls, max_tool_runs, max_node_creations, max_edge_mutations,
-		       expires_at, created_at
-		FROM job_capabilities
-		WHERE job_id = $1
-	`, jobID)
-	var capability domain.JobCapability
-	var allowedDocumentIDsJSON, allowedNodeIDsJSON, allowedOperationsJSON string
-	var expiresAt, createdAt time.Time
-	if err := row.Scan(
-		&capability.CapabilityID,
-		&capability.JobID,
-		&capability.WorkspaceID,
-		&capability.GraphID,
-		&allowedDocumentIDsJSON,
-		&allowedNodeIDsJSON,
-		&allowedOperationsJSON,
-		&capability.MaxLLMCalls,
-		&capability.MaxToolRuns,
-		&capability.MaxNodeCreations,
-		&capability.MaxEdgeMutations,
-		&expiresAt,
-		&createdAt,
-	); err != nil {
+	row, err := s.q().GetJobCapability(context.Background(), jobID)
+	if err != nil {
 		return nil, false
 	}
-	if err := json.Unmarshal([]byte(allowedDocumentIDsJSON), &capability.AllowedDocumentIDs); err != nil {
+	capability, err := toJobCapability(row)
+	if err != nil {
 		return nil, false
 	}
-	if err := json.Unmarshal([]byte(allowedNodeIDsJSON), &capability.AllowedNodeIDs); err != nil {
-		return nil, false
-	}
-	var allowedOperations []string
-	if err := json.Unmarshal([]byte(allowedOperationsJSON), &allowedOperations); err != nil {
-		return nil, false
-	}
-	for _, op := range allowedOperations {
-		capability.AllowedOperations = append(capability.AllowedOperations, domain.JobOperation(op))
-	}
-	capability.ExpiresAt = expiresAt.UTC().Format(time.RFC3339)
-	capability.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-	return &capability, true
+	return capability, true
 }
 
 func (s *Store) GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool) {
-	row := s.db.QueryRowContext(context.Background(), `
-		SELECT plan_id, job_id, status, summary, plan_json, created_by, created_at, updated_at
-		FROM job_execution_plans
-		WHERE job_id = $1
-		ORDER BY created_at DESC
-		LIMIT 1
-	`, jobID)
-	var plan domain.JobExecutionPlan
-	var createdAt, updatedAt time.Time
-	if err := row.Scan(
-		&plan.PlanID,
-		&plan.JobID,
-		&plan.Status,
-		&plan.Summary,
-		&plan.PlanJSON,
-		&plan.CreatedBy,
-		&createdAt,
-		&updatedAt,
-	); err != nil {
+	row, err := s.q().GetJobExecutionPlan(context.Background(), jobID)
+	if err != nil {
 		return nil, false
 	}
-	plan.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-	plan.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
-	return &plan, true
+	return toJobExecutionPlan(row), true
 }
 
 func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool {
 	if plan == nil {
 		return false
 	}
+
 	now := nowTime()
 	if strings.TrimSpace(plan.PlanID) == "" {
 		plan.PlanID = "plan_" + jobID
@@ -173,33 +158,38 @@ func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPl
 	if strings.TrimSpace(plan.Status) == "" {
 		plan.Status = "draft"
 	}
+
 	tx, err := s.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return false
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(context.Background(), `
-		INSERT INTO job_execution_plans (plan_id, job_id, status, summary, plan_json, created_by, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-		ON CONFLICT (plan_id) DO UPDATE
-		SET status = EXCLUDED.status,
-		    summary = EXCLUDED.summary,
-		    plan_json = EXCLUDED.plan_json,
-		    created_by = EXCLUDED.created_by,
-		    updated_at = EXCLUDED.updated_at
-	`, plan.PlanID, jobID, plan.Status, plan.Summary, plan.PlanJSON, firstNonEmptyNonSQL(plan.CreatedBy, "planner"), now); err != nil {
+
+	qtx := s.q().WithTx(tx)
+	if err := qtx.UpsertJobExecutionPlan(context.Background(), sqlcgen.UpsertJobExecutionPlanParams{
+		PlanID:    plan.PlanID,
+		JobID:     jobID,
+		Status:    plan.Status,
+		Summary:   plan.Summary,
+		PlanJson:  plan.PlanJSON,
+		CreatedBy: firstNonEmptyNonSQL(plan.CreatedBy, "planner"),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
 		return false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE document_processing_jobs
-		SET execution_plan_id = $2, plan_status = $3, updated_at = $4
-		WHERE job_id = $1
-	`, jobID, plan.PlanID, plan.Status, now); err != nil {
+	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+		JobID:           jobID,
+		ExecutionPlanID: plan.PlanID,
+		PlanStatus:      plan.Status,
+		UpdatedAt:       now,
+	}); err != nil {
 		return false
 	}
 	if err := tx.Commit(); err != nil {
 		return false
 	}
+
 	plan.CreatedAt = now.UTC().Format(time.RFC3339)
 	plan.UpdatedAt = plan.CreatedAt
 	return true
@@ -211,28 +201,25 @@ func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
 		return nil, false
 	}
 	plan, _ := s.GetJobExecutionPlan(jobID)
-	var mutationCount int32
-	if err := s.db.QueryRowContext(context.Background(), `
-		SELECT COUNT(*)
-		FROM job_mutation_logs
-		WHERE job_id = $1
-	`, jobID).Scan(&mutationCount); err != nil {
+	mutationCount, err := s.q().CountJobMutationLogs(context.Background(), jobID)
+	if err != nil {
 		return nil, false
 	}
+
 	result := &domain.JobEvaluationResult{
 		JobID:         job.JobID,
-		Passed:        job.Status == "completed" && job.EvaluationStatus != "failed",
+		Passed:        job.Status == treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED && job.EvaluationStatus != "failed",
 		Status:        job.EvaluationStatus,
-		MutationCount: mutationCount,
+		MutationCount: int32(mutationCount),
 	}
 	if plan != nil {
 		result.PlanID = plan.PlanID
 	}
 	if result.Passed {
-		result.Summary = fmt.Sprintf("job completed with %d graph mutations", mutationCount)
+		result.Summary = "job completed successfully"
 		result.Score = 100
 		if mutationCount == 0 {
-			result.Findings = append(result.Findings, "job completed without any recorded graph mutations")
+			result.Findings = append(result.Findings, "job completed without any recorded tree mutations")
 			result.Score = 70
 		}
 	} else {
@@ -255,50 +242,18 @@ func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
 }
 
 func (s *Store) ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool) {
-	rows, err := s.db.QueryContext(context.Background(), `
-		SELECT approval_id, job_id, plan_id, status, requested_operations_json, reason, risk_tier,
-		       requested_by, reviewed_by, requested_at, reviewed_at
-		FROM job_approval_requests
-		WHERE job_id = $1
-		ORDER BY requested_at DESC
-	`, jobID)
+	rows, err := s.q().ListJobApprovalRequests(context.Background(), jobID)
 	if err != nil {
 		return nil, false
 	}
-	defer rows.Close()
-	var requests []*domain.JobApprovalRequest
-	for rows.Next() {
-		var req domain.JobApprovalRequest
-		var requestedOpsJSON string
-		var requestedAt time.Time
-		var reviewedAt *time.Time
-		if err := rows.Scan(
-			&req.ApprovalID,
-			&req.JobID,
-			&req.PlanID,
-			&req.Status,
-			&requestedOpsJSON,
-			&req.Reason,
-			&req.RiskTier,
-			&req.RequestedBy,
-			&req.ReviewedBy,
-			&requestedAt,
-			&reviewedAt,
-		); err != nil {
+
+	requests := make([]*domain.JobApprovalRequest, 0, len(rows))
+	for _, row := range rows {
+		req, convErr := toJobApprovalRequest(row)
+		if convErr != nil {
 			return nil, false
 		}
-		var ops []string
-		if err := json.Unmarshal([]byte(requestedOpsJSON), &ops); err != nil {
-			return nil, false
-		}
-		for _, op := range ops {
-			req.RequestedOperations = append(req.RequestedOperations, domain.JobOperation(op))
-		}
-		req.RequestedAt = requestedAt.UTC().Format(time.RFC3339)
-		if reviewedAt != nil {
-			req.ReviewedAt = reviewedAt.UTC().Format(time.RFC3339)
-		}
-		requests = append(requests, &req)
+		requests = append(requests, req)
 	}
 	return requests, true
 }
@@ -319,44 +274,69 @@ func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.J
 			}
 		}
 	}
+
 	now := nowTime()
+	requestedOperations := []treev1.JobOperation{
+		treev1.JobOperation_JOB_OPERATION_EMIT_PLAN,
+		treev1.JobOperation_JOB_OPERATION_EMIT_EVAL,
+	}
+	requestedOpsJSON, err := marshalJobOperations(requestedOperations)
+	if err != nil {
+		return nil, false
+	}
 	approval := &domain.JobApprovalRequest{
 		ApprovalID:          "apr_" + newID(),
 		JobID:               jobID,
 		PlanID:              plan.PlanID,
 		Status:              "pending",
-		RequestedOperations: []domain.JobOperation{domain.JobOperationEmitPlan, domain.JobOperationEmitEval},
+		RequestedOperations: requestedOperations,
 		Reason:              firstNonEmptyNonSQL(reason, "approval required before execution"),
 		RiskTier:            plan.HighestRiskTier(),
 		RequestedBy:         firstNonEmptyNonSQL(requestedBy, "system"),
 		RequestedAt:         now.UTC().Format(time.RFC3339),
 	}
-	requestedOpsJSON, _ := json.Marshal([]string{string(domain.JobOperationEmitPlan), string(domain.JobOperationEmitEval)})
+
 	tx, err := s.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return nil, false
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(context.Background(), `
-		INSERT INTO job_approval_requests (
-			approval_id, job_id, plan_id, status, requested_operations_json, reason, risk_tier, requested_by, reviewed_by, requested_at, reviewed_at
-		) VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, '', $8, NULL)
-	`, approval.ApprovalID, approval.JobID, approval.PlanID, string(requestedOpsJSON), approval.Reason, approval.RiskTier, approval.RequestedBy, now); err != nil {
+
+	qtx := s.q().WithTx(tx)
+	if err := qtx.CreateJobApprovalRequest(context.Background(), sqlcgen.CreateJobApprovalRequestParams{
+		ApprovalID:              approval.ApprovalID,
+		JobID:                   approval.JobID,
+		PlanID:                  approval.PlanID,
+		Status:                  approval.Status,
+		RequestedOperationsJson: string(requestedOpsJSON),
+		Reason:                  approval.Reason,
+		RiskTier:                approval.RiskTier,
+		RequestedBy:             approval.RequestedBy,
+		ReviewedBy:              "",
+		RequestedAt:             now,
+		ReviewedAt:              sql.NullTime{},
+	}); err != nil {
 		return nil, false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE job_execution_plans SET status = 'pending_approval', updated_at = $2 WHERE plan_id = $1
-	`, approval.PlanID, now); err != nil {
+	if _, err := qtx.UpdateJobExecutionPlanStatus(context.Background(), sqlcgen.UpdateJobExecutionPlanStatusParams{
+		PlanID:    approval.PlanID,
+		Status:    "pending_approval",
+		UpdatedAt: now,
+	}); err != nil {
 		return nil, false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE document_processing_jobs SET plan_status = 'pending_approval', updated_at = $2 WHERE job_id = $1
-	`, approval.JobID, now); err != nil {
+	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+		JobID:           approval.JobID,
+		ExecutionPlanID: approval.PlanID,
+		PlanStatus:      "pending_approval",
+		UpdatedAt:       now,
+	}); err != nil {
 		return nil, false
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, false
 	}
+
 	job.PlanStatus = "pending_approval"
 	return approval, true
 }
@@ -368,29 +348,39 @@ func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool {
 		return false
 	}
 	defer tx.Rollback()
-	var planID string
-	if err := tx.QueryRowContext(context.Background(), `
-		SELECT plan_id FROM job_approval_requests WHERE job_id = $1 AND approval_id = $2
-	`, jobID, approvalID).Scan(&planID); err != nil {
+
+	qtx := s.q().WithTx(tx)
+	planID, err := qtx.GetJobApprovalPlanID(context.Background(), sqlcgen.GetJobApprovalPlanIDParams{
+		JobID:      jobID,
+		ApprovalID: approvalID,
+	})
+	if err != nil {
 		return false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE job_approval_requests
-		SET status = 'approved', reviewed_by = $3, reviewed_at = $4
-		WHERE job_id = $1 AND approval_id = $2
-	`, jobID, approvalID, firstNonEmptyNonSQL(reviewedBy, "reviewer"), now); err != nil {
+	if _, err := qtx.ApproveJobApproval(context.Background(), sqlcgen.ApproveJobApprovalParams{
+		JobID:      jobID,
+		ApprovalID: approvalID,
+		ReviewedBy: firstNonEmptyNonSQL(reviewedBy, "reviewer"),
+		ReviewedAt: sql.NullTime{Time: now, Valid: true},
+	}); err != nil {
 		return false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE job_execution_plans SET status = 'approved', updated_at = $2 WHERE plan_id = $1
-	`, planID, now); err != nil {
+	if _, err := qtx.UpdateJobExecutionPlanStatus(context.Background(), sqlcgen.UpdateJobExecutionPlanStatusParams{
+		PlanID:    planID,
+		Status:    "approved",
+		UpdatedAt: now,
+	}); err != nil {
 		return false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE document_processing_jobs SET plan_status = 'approved', updated_at = $2 WHERE job_id = $1
-	`, jobID, now); err != nil {
+	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+		JobID:           jobID,
+		ExecutionPlanID: planID,
+		PlanStatus:      "approved",
+		UpdatedAt:       now,
+	}); err != nil {
 		return false
 	}
+
 	return tx.Commit() == nil
 }
 
@@ -401,111 +391,153 @@ func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) 
 		return false
 	}
 	defer tx.Rollback()
-	var planID string
-	if err := tx.QueryRowContext(context.Background(), `
-		SELECT plan_id FROM job_approval_requests WHERE job_id = $1 AND approval_id = $2
-	`, jobID, approvalID).Scan(&planID); err != nil {
+
+	qtx := s.q().WithTx(tx)
+	planID, err := qtx.GetJobApprovalPlanID(context.Background(), sqlcgen.GetJobApprovalPlanIDParams{
+		JobID:      jobID,
+		ApprovalID: approvalID,
+	})
+	if err != nil {
 		return false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE job_approval_requests
-		SET status = 'rejected', reviewed_by = $3, reviewed_at = $4, reason = CASE WHEN $5 = '' THEN reason ELSE $5 END
-		WHERE job_id = $1 AND approval_id = $2
-	`, jobID, approvalID, firstNonEmptyNonSQL(reviewedBy, "reviewer"), now, strings.TrimSpace(reason)); err != nil {
+	if _, err := qtx.RejectJobApproval(context.Background(), sqlcgen.RejectJobApprovalParams{
+		JobID:      jobID,
+		ApprovalID: approvalID,
+		ReviewedBy: firstNonEmptyNonSQL(reviewedBy, "reviewer"),
+		ReviewedAt: sql.NullTime{Time: now, Valid: true},
+		Column5:    strings.TrimSpace(reason),
+	}); err != nil {
 		return false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE job_execution_plans SET status = 'rejected', updated_at = $2 WHERE plan_id = $1
-	`, planID, now); err != nil {
+	if _, err := qtx.UpdateJobExecutionPlanStatus(context.Background(), sqlcgen.UpdateJobExecutionPlanStatusParams{
+		PlanID:    planID,
+		Status:    "rejected",
+		UpdatedAt: now,
+	}); err != nil {
 		return false
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		UPDATE document_processing_jobs SET plan_status = 'rejected', updated_at = $2 WHERE job_id = $1
-	`, jobID, now); err != nil {
+	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+		JobID:           jobID,
+		ExecutionPlanID: planID,
+		PlanStatus:      "rejected",
+		UpdatedAt:       now,
+	}); err != nil {
 		return false
 	}
+
 	return tx.Commit() == nil
 }
 
-func firstNonEmptyNonSQL(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func (s *Store) CreateProcessingJob(docID, graphID, jobType string) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(docID, workspaceID, jobType string) *domain.DocumentProcessingJob {
 	createdAt := nowTime()
 	jobID := newID()
 	doc, ok := s.GetDocument(docID)
 	if !ok {
 		return nil
 	}
-	capability := domain.DefaultJobCapability(jobID, doc.WorkspaceID, graphID, docID, createdAt)
-	allowedDocumentIDsJSON, _ := json.Marshal(capability.AllowedDocumentIDs)
-	allowedNodeIDsJSON, _ := json.Marshal(capability.AllowedNodeIDs)
-	allowedOperations := make([]string, 0, len(capability.AllowedOperations))
-	for _, op := range capability.AllowedOperations {
-		allowedOperations = append(allowedOperations, string(op))
+
+	capability := domain.DefaultJobCapability(jobID, doc.WorkspaceID, docID, createdAt)
+	allowedDocumentIDsJSON, err := json.Marshal(capability.AllowedDocumentIDs)
+	if err != nil {
+		return nil
 	}
-	allowedOperationsJSON, _ := json.Marshal(allowedOperations)
-	budgetJSON, _ := json.Marshal(map[string]int{
+	allowedItemIDsJSON, err := json.Marshal(capability.AllowedItemIDs)
+	if err != nil {
+		return nil
+	}
+	allowedOperationsJSON, err := marshalJobOperations(capability.AllowedOperations)
+	if err != nil {
+		return nil
+	}
+	budgetJSON, err := json.Marshal(map[string]int{
 		"max_llm_calls":      capability.MaxLLMCalls,
 		"max_tool_runs":      capability.MaxToolRuns,
-		"max_node_creations": capability.MaxNodeCreations,
-		"max_edge_mutations": capability.MaxEdgeMutations,
+		"max_item_creations": capability.MaxItemCreations,
 	})
+	if err != nil {
+		return nil
+	}
+
 	planID := "plan_" + jobID
-	planJSON, _ := json.Marshal(map[string]any{
+	planJSON, err := json.Marshal(map[string]any{
 		"summary": "default document processing pipeline",
 		"steps": []map[string]any{
 			{
 				"title":      "document_pipeline",
 				"risk_tier":  "tier_1",
-				"operations": allowedOperations,
+				"operations": capability.AllowedOperations,
 				"documents":  capability.AllowedDocumentIDs,
 			},
 		},
 	})
+	if err != nil {
+		return nil
+	}
+
 	tx, err := s.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return nil
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(context.Background(), `
-		INSERT INTO document_processing_jobs (
-			job_id, document_id, graph_id, job_type, status, current_stage, error_message, params_json,
-			requested_by, capability_id, execution_plan_id, plan_status, evaluation_status, retry_count, budget_json,
-			created_at, updated_at
-		) VALUES ($1, $2, NULLIF($3, ''), $4, 'queued', '', '', '{}', 'system', $5, $6, 'approved', 'pending', 0, $7, $8, $8)
-	`, jobID, docID, graphID, jobType, capability.CapabilityID, planID, string(budgetJSON), createdAt); err != nil {
+
+	qtx := s.q().WithTx(tx)
+	if err := qtx.CreateProcessingJob(context.Background(), sqlcgen.CreateProcessingJobParams{
+		JobID:            jobID,
+		DocumentID:       docID,
+		WorkspaceID:      workspaceID,
+		JobType:          jobType,
+		Status:           "queued",
+		CurrentStage:     "",
+		ErrorMessage:     "",
+		ParamsJson:       "{}",
+		RequestedBy:      "system",
+		CapabilityID:     capability.CapabilityID,
+		ExecutionPlanID:  planID,
+		PlanStatus:       "approved",
+		EvaluationStatus: "pending",
+		RetryCount:       0,
+		BudgetJson:       string(budgetJSON),
+		CreatedAt:        createdAt,
+	}); err != nil {
 		return nil
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		INSERT INTO job_capabilities (
-			capability_id, job_id, workspace_id, graph_id, allowed_document_ids_json, allowed_node_ids_json,
-			allowed_operations_json, max_llm_calls, max_tool_runs, max_node_creations, max_edge_mutations, expires_at, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-	`, capability.CapabilityID, jobID, capability.WorkspaceID, capability.GraphID, string(allowedDocumentIDsJSON), string(allowedNodeIDsJSON), string(allowedOperationsJSON), capability.MaxLLMCalls, capability.MaxToolRuns, capability.MaxNodeCreations, capability.MaxEdgeMutations, createdAt.Add(24*time.Hour), createdAt); err != nil {
+	if err := qtx.CreateJobCapability(context.Background(), sqlcgen.CreateJobCapabilityParams{
+		CapabilityID:           capability.CapabilityID,
+		JobID:                  capability.JobID,
+		WorkspaceID:            capability.WorkspaceID,
+		AllowedDocumentIdsJson: string(allowedDocumentIDsJSON),
+		AllowedItemIdsJson:     string(allowedItemIDsJSON),
+		AllowedOperationsJson:  string(allowedOperationsJSON),
+		MaxLlmCalls:            int32(capability.MaxLLMCalls),
+		MaxToolRuns:            int32(capability.MaxToolRuns),
+		MaxItemCreations:       int32(capability.MaxItemCreations),
+		ExpiresAt:              mustParseTime(capability.ExpiresAt),
+		CreatedAt:              mustParseTime(capability.CreatedAt),
+	}); err != nil {
 		return nil
 	}
-	if _, err := tx.ExecContext(context.Background(), `
-		INSERT INTO job_execution_plans (plan_id, job_id, status, summary, plan_json, created_by, created_at, updated_at)
-		VALUES ($1, $2, 'approved', 'default document processing pipeline', $3, 'planner', $4, $4)
-	`, planID, jobID, string(planJSON), createdAt); err != nil {
+	if err := qtx.UpsertJobExecutionPlan(context.Background(), sqlcgen.UpsertJobExecutionPlanParams{
+		PlanID:    planID,
+		JobID:     jobID,
+		Status:    "approved",
+		Summary:   "default document processing pipeline",
+		PlanJson:  string(planJSON),
+		CreatedBy: "planner",
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt,
+	}); err != nil {
 		return nil
 	}
 	if err := tx.Commit(); err != nil {
 		return nil
 	}
+
 	return &domain.DocumentProcessingJob{
 		JobID:            jobID,
 		DocumentID:       docID,
-		GraphID:          graphID,
-		JobType:          jobType,
-		Status:           "queued",
+		WorkspaceID:      workspaceID,
+		JobType:          parseJobType(jobType),
+		Status:           treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
 		RequestedBy:      "system",
 		CapabilityID:     capability.CapabilityID,
 		ExecutionPlanID:  planID,
@@ -518,16 +550,11 @@ func (s *Store) CreateProcessingJob(docID, graphID, jobType string) *domain.Docu
 }
 
 func (s *Store) MarkProcessingJobRunning(jobID string) bool {
-	result, err := s.db.ExecContext(context.Background(), `
-		UPDATE document_processing_jobs
-		SET status = 'running', error_message = '', plan_status = CASE WHEN plan_status IN ('', 'approved') THEN 'executing' ELSE plan_status END, updated_at = $2
-		WHERE job_id = $1
-	`, jobID, nowTime())
-	if err != nil {
-		return false
-	}
-	affected, _ := result.RowsAffected()
-	return affected > 0
+	rowsAffected, err := s.q().MarkProcessingJobRunning(context.Background(), sqlcgen.MarkProcessingJobRunningParams{
+		JobID:     jobID,
+		UpdatedAt: nowTime(),
+	})
+	return err == nil && rowsAffected > 0
 }
 
 func (s *Store) UpdateProcessingJobStage(jobID, stage string) bool {
@@ -539,58 +566,20 @@ func (s *Store) UpdateProcessingJobStage(jobID, stage string) bool {
 }
 
 func (s *Store) FailProcessingJob(jobID, errorMessage string) bool {
-	affected, err := s.db.ExecContext(context.Background(), `
-		UPDATE document_processing_jobs
-		SET status = 'failed', error_message = $2, evaluation_status = 'failed', updated_at = $3
-		WHERE job_id = $1
-	`, jobID, errorMessage, nowTime())
-	if err != nil {
-		return false
-	}
-	rowsAffected, _ := affected.RowsAffected()
-	return rowsAffected > 0
+	rowsAffected, err := s.q().FailProcessingJob(context.Background(), sqlcgen.FailProcessingJobParams{
+		JobID:        jobID,
+		ErrorMessage: errorMessage,
+		UpdatedAt:    nowTime(),
+	})
+	return err == nil && rowsAffected > 0
 }
 
 func (s *Store) CompleteProcessingJob(jobID string) bool {
-	affected, err := s.db.ExecContext(context.Background(), `
-		UPDATE document_processing_jobs
-		SET status = 'completed', current_stage = '', plan_status = 'completed', evaluation_status = 'passed', updated_at = $2
-		WHERE job_id = $1
-	`, jobID, nowTime())
-	if err != nil {
-		return false
-	}
-	rowsAffected, _ := affected.RowsAffected()
-	return rowsAffected > 0
-}
-
-func scanProcessingJob(row scanner) (*domain.DocumentProcessingJob, error) {
-	var job domain.DocumentProcessingJob
-	var createdAt, updatedAt time.Time
-	if err := row.Scan(
-		&job.JobID,
-		&job.DocumentID,
-		&job.GraphID,
-		&job.JobType,
-		&job.Status,
-		&job.CurrentStage,
-		&job.ErrorMessage,
-		&job.ParamsJSON,
-		&job.RequestedBy,
-		&job.CapabilityID,
-		&job.ExecutionPlanID,
-		&job.PlanStatus,
-		&job.EvaluationStatus,
-		&job.RetryCount,
-		&job.BudgetJSON,
-		&createdAt,
-		&updatedAt,
-	); err != nil {
-		return nil, err
-	}
-	job.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-	job.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
-	return &job, nil
+	rowsAffected, err := s.q().CompleteProcessingJob(context.Background(), sqlcgen.CompleteProcessingJobParams{
+		JobID:     jobID,
+		UpdatedAt: nowTime(),
+	})
+	return err == nil && rowsAffected > 0
 }
 
 func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error {
@@ -599,20 +588,151 @@ func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentC
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(context.Background(), `DELETE FROM document_chunks WHERE document_id = $1`, documentID); err != nil {
+
+	qtx := s.q().WithTx(tx)
+	if err := qtx.DeleteDocumentChunks(context.Background(), documentID); err != nil {
 		return err
 	}
 	for i, chunk := range chunks {
 		chunkID := chunk.ChunkID
 		if chunkID == "" {
-			chunkID = fmt.Sprintf("chk_%s_%03d", documentID, i)
+			chunkID = "chk_" + documentID + "_" + leftPadIndex(i)
 		}
-		if _, err := tx.ExecContext(context.Background(), `
-			INSERT INTO document_chunks (chunk_id, document_id, heading, text, source_page)
-			VALUES ($1, $2, $3, $4, $5)
-		`, chunkID, documentID, chunk.Heading, chunk.Text, chunk.SourcePage); err != nil {
+		if err := qtx.CreateDocumentChunk(context.Background(), sqlcgen.CreateDocumentChunkParams{
+			ChunkID:    chunkID,
+			DocumentID: documentID,
+			Heading:    chunk.Heading,
+			Text:       chunk.Text,
+			SourcePage: sql.NullInt32{Int32: int32(chunk.SourcePage), Valid: true},
+		}); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
+}
+
+func toDocumentChunk(row sqlcgen.DocumentChunk) *domain.DocumentChunk {
+	return &domain.DocumentChunk{
+		ChunkID:    row.ChunkID,
+		DocumentID: row.DocumentID,
+		Heading:    row.Heading,
+		Text:       row.Text,
+		SourcePage: int(row.SourcePage.Int32),
+	}
+}
+
+func toJobCapability(row sqlcgen.JobCapability) (*domain.JobCapability, error) {
+	var allowedDocumentIDs []string
+	if err := json.Unmarshal([]byte(row.AllowedDocumentIdsJson), &allowedDocumentIDs); err != nil {
+		return nil, err
+	}
+	var allowedItemIDs []string
+	if err := json.Unmarshal([]byte(row.AllowedItemIdsJson), &allowedItemIDs); err != nil {
+		return nil, err
+	}
+	var opNames []string
+	if err := json.Unmarshal([]byte(row.AllowedOperationsJson), &opNames); err != nil {
+		return nil, err
+	}
+	allowedOperations := make([]treev1.JobOperation, 0, len(opNames))
+	for _, opName := range opNames {
+		allowedOperations = append(allowedOperations, parseJobOperation(opName))
+	}
+
+	return &domain.JobCapability{
+		CapabilityID:       row.CapabilityID,
+		JobID:              row.JobID,
+		WorkspaceID:        row.WorkspaceID,
+		AllowedDocumentIDs: allowedDocumentIDs,
+		AllowedItemIDs:     allowedItemIDs,
+		AllowedOperations:  allowedOperations,
+		MaxLLMCalls:        int(row.MaxLlmCalls),
+		MaxToolRuns:        int(row.MaxToolRuns),
+		MaxItemCreations:   int(row.MaxItemCreations),
+		ExpiresAt:          row.ExpiresAt.UTC().Format(time.RFC3339),
+		CreatedAt:          row.CreatedAt.UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func toJobExecutionPlan(row sqlcgen.JobExecutionPlan) *domain.JobExecutionPlan {
+	return &domain.JobExecutionPlan{
+		PlanID:    row.PlanID,
+		JobID:     row.JobID,
+		Status:    row.Status,
+		Summary:   row.Summary,
+		PlanJSON:  row.PlanJson,
+		CreatedBy: row.CreatedBy,
+		CreatedAt: row.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt: row.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func toJobApprovalRequest(row sqlcgen.JobApprovalRequest) (*domain.JobApprovalRequest, error) {
+	var opNames []string
+	if err := json.Unmarshal([]byte(row.RequestedOperationsJson), &opNames); err != nil {
+		return nil, err
+	}
+	requestedOperations := make([]treev1.JobOperation, 0, len(opNames))
+	for _, opName := range opNames {
+		requestedOperations = append(requestedOperations, parseJobOperation(opName))
+	}
+
+	req := &domain.JobApprovalRequest{
+		ApprovalID:          row.ApprovalID,
+		JobID:               row.JobID,
+		PlanID:              row.PlanID,
+		Status:              row.Status,
+		RequestedOperations: requestedOperations,
+		Reason:              row.Reason,
+		RiskTier:            row.RiskTier,
+		RequestedBy:         row.RequestedBy,
+		ReviewedBy:          row.ReviewedBy,
+		RequestedAt:         row.RequestedAt.UTC().Format(time.RFC3339),
+	}
+	if row.ReviewedAt.Valid {
+		req.ReviewedAt = row.ReviewedAt.Time.UTC().Format(time.RFC3339)
+	}
+	return req, nil
+}
+
+func parseJobOperation(value string) treev1.JobOperation {
+	if enumValue, ok := treev1.JobOperation_value[value]; ok {
+		return treev1.JobOperation(enumValue)
+	}
+	return treev1.JobOperation_JOB_OPERATION_UNSPECIFIED
+}
+
+func marshalJobOperations(ops []treev1.JobOperation) ([]byte, error) {
+	names := make([]string, 0, len(ops))
+	for _, op := range ops {
+		names = append(names, op.String())
+	}
+	return json.Marshal(names)
+}
+
+func mustParseTime(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
+func firstNonEmptyNonSQL(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func leftPadIndex(i int) string {
+	if i < 10 {
+		return "00" + strconv.Itoa(i)
+	}
+	if i < 100 {
+		return "0" + strconv.Itoa(i)
+	}
+	return strconv.Itoa(i)
 }
