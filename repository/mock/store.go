@@ -179,6 +179,10 @@ func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPl
 	return true
 }
 
+func (s *Store) UpsertJobEvaluation(jobID string, result *domain.JobEvaluationResult) bool {
+	return true
+}
+
 func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
 	return &domain.JobEvaluationResult{JobID: jobID, Passed: true, Summary: "mock eval passed"}, true
 }
@@ -197,14 +201,14 @@ func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.J
 func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool        { return true }
 func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool { return true }
 
-func (s *Store) CreateProcessingJob(docID, workspaceID, jobType string) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	j := &domain.DocumentProcessingJob{
 		JobID:       "job-" + docID,
 		DocumentID:  docID,
 		WorkspaceID: workspaceID,
-		JobType:     parseJobType(jobType),
+		JobType:     jobType,
 		Status:      treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
@@ -363,14 +367,3 @@ var _ repository.WorkspaceRepository = (*Store)(nil)
 var _ repository.DocumentRepository = (*Store)(nil)
 var _ repository.TreeRepository = (*Store)(nil)
 var _ repository.ItemRepository = (*Store)(nil)
-
-func parseJobType(s string) treev1.JobType {
-	switch s {
-	case "process_document":
-		return treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
-	case "reprocess_document":
-		return treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
-	default:
-		return treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
-	}
-}

@@ -101,7 +101,8 @@ func (q *Queries) CreateStructuredItem(ctx context.Context, arg CreateStructured
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+       COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE id = $1
 `
@@ -115,6 +116,7 @@ type GetItemRow struct {
 	Description string
 	SummaryHtml string
 	CreatedBy   string
+	GovernanceState string
 	CreatedAt   time.Time
 }
 
@@ -130,6 +132,7 @@ func (q *Queries) GetItem(ctx context.Context, id string) (GetItemRow, error) {
 		&i.Description,
 		&i.SummaryHtml,
 		&i.CreatedBy,
+		&i.GovernanceState,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -234,7 +237,8 @@ func (q *Queries) InsertJobMutationLog(ctx context.Context, arg InsertJobMutatio
 }
 
 const listChildItems = `-- name: ListChildItems :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at,
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+  COALESCE(governance_state, 'system_generated') AS governance_state, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items
 WHERE tree_items.parent_id = $1
@@ -249,6 +253,7 @@ type ListChildItemsRow struct {
 	Description string
 	SummaryHtml string
 	CreatedBy   string
+	GovernanceState string
 	CreatedAt   time.Time
 	HasChildren bool
 }
@@ -271,6 +276,7 @@ func (q *Queries) ListChildItems(ctx context.Context, parentID sql.NullString) (
 			&i.Description,
 			&i.SummaryHtml,
 			&i.CreatedBy,
+			&i.GovernanceState,
 			&i.CreatedAt,
 			&i.HasChildren,
 		); err != nil {
@@ -331,7 +337,8 @@ func (q *Queries) ListItemSources(ctx context.Context, itemID string) ([]ListIte
 }
 
 const listItemsByWorkspace = `-- name: ListItemsByWorkspace :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+       COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC
@@ -346,6 +353,7 @@ type ListItemsByWorkspaceRow struct {
 	Description string
 	SummaryHtml string
 	CreatedBy   string
+	GovernanceState string
 	CreatedAt   time.Time
 }
 
@@ -367,6 +375,7 @@ func (q *Queries) ListItemsByWorkspace(ctx context.Context, workspaceID string) 
 			&i.Description,
 			&i.SummaryHtml,
 			&i.CreatedBy,
+			&i.GovernanceState,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

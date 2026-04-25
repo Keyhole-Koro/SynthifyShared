@@ -1,6 +1,9 @@
 package repository
 
-import "github.com/Keyhole-Koro/SynthifyShared/domain"
+import (
+	"github.com/Keyhole-Koro/SynthifyShared/domain"
+	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+)
 
 type UploadURLGenerator func(workspaceID, documentID string) string
 
@@ -32,7 +35,7 @@ type DocumentRepository interface {
 	RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
 	ApproveJobApproval(jobID, approvalID, reviewedBy string) bool
 	RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool
-	CreateProcessingJob(docID, workspaceID, jobType string) *domain.DocumentProcessingJob
+	CreateProcessingJob(docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(jobID string) bool
 	UpdateProcessingJobStage(jobID, stage string) bool
 	FailProcessingJob(jobID, errorMessage string) bool

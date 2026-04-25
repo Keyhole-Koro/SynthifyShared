@@ -428,7 +428,7 @@ func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) 
 	return tx.Commit() == nil
 }
 
-func (s *Store) CreateProcessingJob(docID, workspaceID, jobType string) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
 	createdAt := nowTime()
 	jobID := newID()
 	doc, ok := s.GetDocument(docID)
@@ -485,7 +485,7 @@ func (s *Store) CreateProcessingJob(docID, workspaceID, jobType string) *domain.
 		JobID:            jobID,
 		DocumentID:       docID,
 		WorkspaceID:      workspaceID,
-		JobType:          jobType,
+		JobType:          formatJobType(jobType),
 		Status:           "queued",
 		CurrentStage:     "",
 		ErrorMessage:     "",
@@ -536,7 +536,7 @@ func (s *Store) CreateProcessingJob(docID, workspaceID, jobType string) *domain.
 		JobID:            jobID,
 		DocumentID:       docID,
 		WorkspaceID:      workspaceID,
-		JobType:          parseJobType(jobType),
+		JobType:          jobType,
 		Status:           treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
 		RequestedBy:      "system",
 		CapabilityID:     capability.CapabilityID,
@@ -749,18 +749,52 @@ func toDocument(row sqlcgen.Document) *domain.Document {
 	}
 }
 
+func (s *Store) UpsertJobEvaluation(jobID string, result *domain.JobEvaluationResult) bool {
+	if result == nil {
+		return false
+	}
+
+	now := nowTime()
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return false
+	}
+	defer tx.Rollback()
+
+	qtx := s.q().WithTx(tx)
+	if err := qtx.UpdateProcessingJobEvaluationState(context.Background(), sqlcgen.UpdateProcessingJobEvaluationStateParams{
+		JobID:            jobID,
+		EvaluationStatus: result.Status,
+		UpdatedAt:        now,
+	}); err != nil {
+		return false
+	}
+
+	// findings can be stored in a JSON column if the schema supports it,
+	// or we can just update the job status.
+	// For now, we update the job evaluation state.
+
+	return tx.Commit() == nil
+}
+
 func toProcessingJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 	return &domain.DocumentProcessingJob{
-		JobID:        row.JobID,
-		DocumentID:   row.DocumentID,
-		WorkspaceID:  row.WorkspaceID,
-		JobType:      parseJobType(row.JobType),
-		Status:       parseJobStatus(row.Status),
-		CurrentStage: row.CurrentStage,
-		ErrorMessage: row.ErrorMessage,
-		ParamsJSON:   row.ParamsJson,
-		CreatedAt:    row.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:    row.UpdatedAt.UTC().Format(time.RFC3339),
+		JobID:            row.JobID,
+		DocumentID:       row.DocumentID,
+		WorkspaceID:      row.WorkspaceID,
+		JobType:          parseJobType(row.JobType),
+		Status:           parseJobStatus(row.Status),
+		CurrentStage:     row.CurrentStage,
+		ErrorMessage:     row.ErrorMessage,
+		ParamsJSON:       row.ParamsJson,
+		RequestedBy:      row.RequestedBy,
+		CapabilityID:     row.CapabilityID,
+		ExecutionPlanID:  row.ExecutionPlanID,
+		PlanStatus:       row.PlanStatus,
+		EvaluationStatus: row.EvaluationStatus,
+		BudgetJSON:       row.BudgetJson,
+		CreatedAt:        row.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:        row.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 }
 
@@ -770,12 +804,12 @@ func parseJobStatus(s string) treev1.JobLifecycleState {
 		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED
 	case "running":
 		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING
-	case "completed", "succeeded":
+	case "succeeded":
 		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED
 	case "failed":
 		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED
 	default:
-		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED
+		return treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_UNSPECIFIED
 	}
 }
 
@@ -786,6 +820,17 @@ func parseJobType(s string) treev1.JobType {
 	case "reprocess_document":
 		return treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
 	default:
-		return treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
+		return treev1.JobType_JOB_TYPE_UNSPECIFIED
+	}
+}
+
+func formatJobType(t treev1.JobType) string {
+	switch t {
+	case treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT:
+		return "process_document"
+	case treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT:
+		return "reprocess_document"
+	default:
+		return "unspecified"
 	}
 }

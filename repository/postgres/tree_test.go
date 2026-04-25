@@ -16,7 +16,7 @@ func TestFindPaths_DBError_ReturnsFalse(t *testing.T) {
 	store := &Store{db: db}
 
 	// No expectations set → any query returns an error → FindPaths returns false.
-	_, _, _, ok := store.FindPaths("nonexistent_tree", "n1", "n2", 4, 3)
+	_, _, ok := store.FindPaths("nonexistent_tree", "n1", "n2", 4, 3)
 	if ok {
 		t.Fatal("expected ok=false on DB error, got true")
 	}
@@ -36,4 +36,3 @@ func TestGetOrCreateTree_DBError_ReturnsError(t *testing.T) {
 		t.Fatal("expected error on DB failure, got nil")
 	}
 }
-

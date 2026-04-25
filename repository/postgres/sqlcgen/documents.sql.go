@@ -39,7 +39,7 @@ func (q *Queries) ApproveJobApproval(ctx context.Context, arg ApproveJobApproval
 
 const completeProcessingJob = `-- name: CompleteProcessingJob :execrows
 UPDATE document_processing_jobs
-SET status = 'completed',
+SET status = 'succeeded',
     current_stage = '',
     plan_status = 'completed',
     evaluation_status = 'passed',
@@ -723,6 +723,28 @@ func (q *Queries) UpdateProcessingJobPlanState(ctx context.Context, arg UpdatePr
 		arg.JobID,
 		arg.ExecutionPlanID,
 		arg.PlanStatus,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const updateProcessingJobEvaluationState = `-- name: UpdateProcessingJobEvaluationState :exec
+UPDATE document_processing_jobs
+SET evaluation_status = $2,
+    updated_at = $3
+WHERE job_id = $1
+`
+
+type UpdateProcessingJobEvaluationStateParams struct {
+	JobID            string
+	EvaluationStatus string
+	UpdatedAt        time.Time
+}
+
+func (q *Queries) UpdateProcessingJobEvaluationState(ctx context.Context, arg UpdateProcessingJobEvaluationStateParams) error {
+	_, err := q.db.ExecContext(ctx, updateProcessingJobEvaluationState,
+		arg.JobID,
+		arg.EvaluationStatus,
 		arg.UpdatedAt,
 	)
 	return err

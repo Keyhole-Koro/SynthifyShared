@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
+	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ func setupTree(t *testing.T, s *Store, wsID string) *domain.Tree {
 	}
 	// Create a processing job to generate seed data.
 	doc, _ := s.CreateDocument(wsID, "user1", "f.pdf", "application/pdf", 100)
-	s.CreateProcessingJob(doc.DocumentID, wsID, "process_document")
+	s.CreateProcessingJob(doc.DocumentID, wsID, treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	return tree
 }
 
@@ -98,7 +99,7 @@ func TestRejectAlias_RemovesAlias(t *testing.T) {
 func TestGetJobPlanningSignals_CountsProvenanceAndAliases(t *testing.T) {
 	store := NewStore()
 	ws := setupWorkspace(t, store, "u1")
-	tree := setupTree(t, store, ws.WorkspaceID)
+	_ = setupTree(t, store, ws.WorkspaceID)
 
 	if err := store.UpsertItemSource("nd_tel", "doc-1", "chunk-1", "source", 0.9); err != nil {
 		t.Fatalf("UpsertItemSource nd_tel: %v", err)

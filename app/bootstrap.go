@@ -8,6 +8,7 @@ import (
 
 	"github.com/Keyhole-Koro/SynthifyShared/config"
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
+	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
 	"github.com/Keyhole-Koro/SynthifyShared/repository"
 	"github.com/Keyhole-Koro/SynthifyShared/repository/mock"
 	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres"
@@ -30,12 +31,13 @@ type Store interface {
 	GetJobCapability(jobID string) (*domain.JobCapability, bool)
 	GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool)
 	UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool
+	UpsertJobEvaluation(jobID string, result *domain.JobEvaluationResult) bool
 	EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool)
 	ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool)
 	RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
 	ApproveJobApproval(jobID, approvalID, reviewedBy string) bool
 	RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool
-	CreateProcessingJob(docID, workspaceID, jobType string) *domain.DocumentProcessingJob
+	CreateProcessingJob(docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(jobID string) bool
 	UpdateProcessingJobStage(jobID, stage string) bool
 	FailProcessingJob(jobID, errorMessage string) bool

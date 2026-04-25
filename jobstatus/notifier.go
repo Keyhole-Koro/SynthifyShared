@@ -91,7 +91,7 @@ func (n *firestoreNotifier) Failed(ctx context.Context, payload Payload, errorMe
 
 func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) {
 	n.write(ctx, payload, map[string]any{
-		"status":       "completed",
+		"status":       "succeeded",
 		"currentStage": "",
 		"errorMessage": "",
 		"updatedAt":    nowRFC3339(),
