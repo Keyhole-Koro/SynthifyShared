@@ -817,6 +817,51 @@ func (q *Queries) RejectJobApproval(ctx context.Context, arg RejectJobApprovalPa
 	return result.RowsAffected()
 }
 
+const searchWorkspaceDocumentChunks = `-- name: SearchWorkspaceDocumentChunks :many
+SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page
+FROM document_chunks c
+INNER JOIN documents d ON d.document_id = c.document_id
+WHERE d.workspace_id = $1
+  AND ($2::text = '%' OR LOWER(c.heading || ' ' || c.text) LIKE $2::text)
+ORDER BY c.chunk_id
+LIMIT $3
+`
+
+type SearchWorkspaceDocumentChunksParams struct {
+	WorkspaceID string
+	Pattern     string
+	ResultLimit int32
+}
+
+func (q *Queries) SearchWorkspaceDocumentChunks(ctx context.Context, arg SearchWorkspaceDocumentChunksParams) ([]DocumentChunk, error) {
+	rows, err := q.db.QueryContext(ctx, searchWorkspaceDocumentChunks, arg.WorkspaceID, arg.Pattern, arg.ResultLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DocumentChunk
+	for rows.Next() {
+		var i DocumentChunk
+		if err := rows.Scan(
+			&i.ChunkID,
+			&i.DocumentID,
+			&i.Heading,
+			&i.Text,
+			&i.SourcePage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateJobExecutionPlanStatus = `-- name: UpdateJobExecutionPlanStatus :execrows
 UPDATE job_execution_plans
 SET status = $2, updated_at = $3

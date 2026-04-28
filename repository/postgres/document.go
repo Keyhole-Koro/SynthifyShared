@@ -797,23 +797,45 @@ func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, out
 	}
 
 	return s.q().CreateJobMutationLog(ctx, sqlcgen.CreateJobMutationLogParams{
-		MutationID:   newID(),
-		JobID:        jobID,
-		WorkspaceID:  job.WorkspaceID,
-		TargetType:   "tool_call",
-		TargetID:     toolName,
-		MutationType: "execute",
-		RiskTier:     "tier_0",
-		BeforeJson:   inputJSON,
-		AfterJson:    outputJSON,
+		MutationID:     newID(),
+		JobID:          jobID,
+		WorkspaceID:    job.WorkspaceID,
+		TargetType:     "tool_call",
+		TargetID:       toolName,
+		MutationType:   "execute",
+		RiskTier:       "tier_0",
+		BeforeJson:     inputJSON,
+		AfterJson:      outputJSON,
 		ProvenanceJson: fmt.Sprintf(`{"duration_ms": %d}`, durationMs),
-		CreatedAt:    nowTime(),
+		CreatedAt:      nowTime(),
 	})
 }
 
+func buildLikePattern(query string) string {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return "%"
+	}
+	return "%" + q + "%"
+}
+
 func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error) {
-	// Stub: in real implementation, this performs vector search on PGVector.
-	return nil, nil
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := s.q().SearchWorkspaceDocumentChunks(ctx, sqlcgen.SearchWorkspaceDocumentChunksParams{
+		WorkspaceID: workspaceID,
+		Pattern:     buildLikePattern(query),
+		ResultLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	chunks := make([]*domain.DocumentChunk, 0, len(rows))
+	for _, row := range rows {
+		chunks = append(chunks, toDocumentChunk(row))
+	}
+	return chunks, nil
 }
 
 func toProcessingJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {

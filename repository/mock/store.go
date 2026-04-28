@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ type Store struct {
 	approvals    map[string][]*domain.JobApprovalRequest
 	items        map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
 	sources      map[string][]*domain.ItemSource
+	chunks       map[string][]*domain.DocumentChunk
 }
 
 func NewStore() *Store {
@@ -35,6 +37,7 @@ func NewStore() *Store {
 		approvals:    make(map[string][]*domain.JobApprovalRequest),
 		items:        make(map[string]map[string]*domain.Item),
 		sources:      make(map[string][]*domain.ItemSource),
+		chunks:       make(map[string][]*domain.DocumentChunk),
 	}
 }
 
@@ -124,7 +127,15 @@ func (s *Store) GetDocument(id string) (*domain.Document, bool) {
 }
 
 func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool) {
-	return nil, false
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	chunks, ok := s.chunks[documentID]
+	if !ok {
+		return nil, false
+	}
+	copied := make([]*domain.DocumentChunk, len(chunks))
+	copy(copied, chunks)
+	return copied, true
 }
 
 func (s *Store) GetJobPlanningSignals(documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
@@ -239,7 +250,7 @@ func (s *Store) CompleteProcessingJob(jobID string) bool           { return true
 func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// If no jobs exist, return a set of realistic mock jobs for UI testing
 	if len(s.jobs) == 0 {
 		now := time.Now().UTC()
@@ -273,6 +284,11 @@ func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
 }
 
 func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copied := make([]*domain.DocumentChunk, len(chunks))
+	copy(copied, chunks)
+	s.chunks[documentID] = copied
 	return nil
 }
 
@@ -281,13 +297,34 @@ func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, out
 }
 
 func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error) {
-	return nil, nil
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if limit <= 0 {
+		limit = 8
+	}
+	query = strings.ToLower(query)
+	var out []*domain.DocumentChunk
+	for documentID, chunks := range s.chunks {
+		doc, ok := s.documents[documentID]
+		if !ok || doc.WorkspaceID != workspaceID {
+			continue
+		}
+		for _, chunk := range chunks {
+			if query == "" || strings.Contains(strings.ToLower(chunk.Heading+" "+chunk.Text), query) {
+				out = append(out, chunk)
+				if len(out) >= limit {
+					return out, nil
+				}
+			}
+		}
+	}
+	return out, nil
 }
 
 func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Return real mock data for any requested jobId to facilitate UI testing
 	now := time.Now().UTC()
 	return []*domain.JobMutationLog{
@@ -300,70 +337,70 @@ func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, boo
 			CreatedAt:    now.Add(-10 * time.Minute).Format(time.RFC3339),
 		},
 		{
-			MutationID:   "m2",
-			JobID:        jobID,
-			TargetType:   "tool_call",
-			TargetID:     "manage_job_checklist",
-			MutationType: "execute",
-			BeforeJSON:   `{"action": "add", "description": "Analyze document structure"}`,
-			AfterJSON:    `{"status": "ok", "task_id": "T1"}`,
+			MutationID:     "m2",
+			JobID:          jobID,
+			TargetType:     "tool_call",
+			TargetID:       "manage_job_checklist",
+			MutationType:   "execute",
+			BeforeJSON:     `{"action": "add", "description": "Analyze document structure"}`,
+			AfterJSON:      `{"status": "ok", "task_id": "T1"}`,
 			ProvenanceJSON: `{"duration_ms": 150}`,
-			CreatedAt:    now.Add(-9 * time.Minute).Format(time.RFC3339),
+			CreatedAt:      now.Add(-9 * time.Minute).Format(time.RFC3339),
 		},
 		{
-			MutationID:   "m3",
-			JobID:        jobID,
-			TargetType:   "tool_call",
-			TargetID:     "extract_text",
-			MutationType: "execute",
-			BeforeJSON:   `{"file_uri": "gs://bucket/doc.pdf"}`,
-			AfterJSON:    `{"raw_text": "Extracted content..."}`,
+			MutationID:     "m3",
+			JobID:          jobID,
+			TargetType:     "tool_call",
+			TargetID:       "extract_text",
+			MutationType:   "execute",
+			BeforeJSON:     `{"file_uri": "gs://bucket/doc.pdf"}`,
+			AfterJSON:      `{"raw_text": "Extracted content..."}`,
 			ProvenanceJSON: `{"duration_ms": 1200}`,
-			CreatedAt:    now.Add(-8 * time.Minute).Format(time.RFC3339),
+			CreatedAt:      now.Add(-8 * time.Minute).Format(time.RFC3339),
 		},
 		{
-			MutationID:   "m4",
-			JobID:        jobID,
-			TargetType:   "tool_call",
-			TargetID:     "semantic_chunking",
-			MutationType: "execute",
-			BeforeJSON:   `{"raw_text": "..."}`,
-			AfterJSON:    `{"chunks": [{"index":0, "text": "..."}]}`,
+			MutationID:     "m4",
+			JobID:          jobID,
+			TargetType:     "tool_call",
+			TargetID:       "semantic_chunking",
+			MutationType:   "execute",
+			BeforeJSON:     `{"raw_text": "..."}`,
+			AfterJSON:      `{"chunks": [{"index":0, "text": "..."}]}`,
 			ProvenanceJSON: `{"duration_ms": 2500}`,
-			CreatedAt:    now.Add(-7 * time.Minute).Format(time.RFC3339),
+			CreatedAt:      now.Add(-7 * time.Minute).Format(time.RFC3339),
 		},
 		{
-			MutationID:   "m5",
-			JobID:        jobID,
-			TargetType:   "tool_call",
-			TargetID:     "goal_driven_synthesis",
-			MutationType: "execute",
-			BeforeJSON:   `{"document_brief": "Master blueprint..."}`,
-			AfterJSON:    `{"items": [{"label": "Concept A", "level": 0}]}`,
+			MutationID:     "m5",
+			JobID:          jobID,
+			TargetType:     "tool_call",
+			TargetID:       "goal_driven_synthesis",
+			MutationType:   "execute",
+			BeforeJSON:     `{"document_brief": "Master blueprint..."}`,
+			AfterJSON:      `{"items": [{"label": "Concept A", "level": 0}]}`,
 			ProvenanceJSON: `{"duration_ms": 5000}`,
-			CreatedAt:    now.Add(-5 * time.Minute).Format(time.RFC3339),
+			CreatedAt:      now.Add(-5 * time.Minute).Format(time.RFC3339),
 		},
 		{
-			MutationID:   "m6",
-			JobID:        jobID,
-			TargetType:   "tool_call",
-			TargetID:     "quality_critique",
-			MutationType: "execute",
-			BeforeJSON:   `{"target_data": "..."}`,
-			AfterJSON:    `{"valid": true, "issues": []}`,
+			MutationID:     "m6",
+			JobID:          jobID,
+			TargetType:     "tool_call",
+			TargetID:       "quality_critique",
+			MutationType:   "execute",
+			BeforeJSON:     `{"target_data": "..."}`,
+			AfterJSON:      `{"valid": true, "issues": []}`,
 			ProvenanceJSON: `{"duration_ms": 3200}`,
-			CreatedAt:    now.Add(-2 * time.Minute).Format(time.RFC3339),
+			CreatedAt:      now.Add(-2 * time.Minute).Format(time.RFC3339),
 		},
 		{
-			MutationID:   "m7",
-			JobID:        jobID,
-			TargetType:   "tool_call",
-			TargetID:     "persist_knowledge_tree",
-			MutationType: "execute",
-			BeforeJSON:   `{"items": [...]}`,
-			AfterJSON:    `{"success": true}`,
+			MutationID:     "m7",
+			JobID:          jobID,
+			TargetType:     "tool_call",
+			TargetID:       "persist_knowledge_tree",
+			MutationType:   "execute",
+			BeforeJSON:     `{"items": [...]}`,
+			AfterJSON:      `{"success": true}`,
 			ProvenanceJSON: `{"duration_ms": 450}`,
-			CreatedAt:    now.Add(-1 * time.Minute).Format(time.RFC3339),
+			CreatedAt:      now.Add(-1 * time.Minute).Format(time.RFC3339),
 		},
 	}, true
 }

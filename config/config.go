@@ -3,20 +3,22 @@ package config
 import "os"
 
 type API struct {
-	Port                  string
-	CORSAllowedOrigins    string
-	GCSUploadURLBase      string
-	InternalGCSUploadBase string
-	FirebaseProjectID     string
-	WorkerBaseURL         string
-	InternalWorkerToken   string
+	Port                     string
+	CORSAllowedOrigins       string
+	GCSUploadURLBase         string
+	InternalGCSUploadBase    string
+	FirebaseProjectID        string
+	FirebaseAuthEmulatorHost string
+	WorkerBaseURL            string
+	InternalWorkerToken      string
 }
 
 type Worker struct {
-	Port                string
-	GCSUploadURLBase    string
-	FirebaseProjectID   string
-	InternalWorkerToken string
+	Port                     string
+	GCSUploadURLBase         string
+	FirebaseProjectID        string
+	FirebaseAuthEmulatorHost string
+	InternalWorkerToken      string
 }
 
 type Store struct {
@@ -35,22 +37,24 @@ type Service struct {
 func LoadAPI() API {
 	uploadBase := get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/synthify-uploads")
 	return API{
-		Port:                  get("PORT", "8080"),
-		CORSAllowedOrigins:    get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
-		GCSUploadURLBase:      uploadBase,
-		InternalGCSUploadBase: get("INTERNAL_GCS_UPLOAD_URL_BASE", uploadBase),
-		FirebaseProjectID:     os.Getenv("FIREBASE_PROJECT_ID"),
-		WorkerBaseURL:         os.Getenv("WORKER_BASE_URL"),
-		InternalWorkerToken:   os.Getenv("INTERNAL_WORKER_TOKEN"),
+		Port:                     get("PORT", "8080"),
+		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
+		GCSUploadURLBase:         uploadBase,
+		InternalGCSUploadBase:    get("INTERNAL_GCS_UPLOAD_URL_BASE", uploadBase),
+		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
+		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
+		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
+		InternalWorkerToken:      os.Getenv("INTERNAL_WORKER_TOKEN"),
 	}
 }
 
 func LoadWorker() Worker {
 	return Worker{
-		Port:                get("PORT", "8080"),
-		GCSUploadURLBase:    get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/synthify-uploads"),
-		FirebaseProjectID:   os.Getenv("FIREBASE_PROJECT_ID"),
-		InternalWorkerToken: os.Getenv("INTERNAL_WORKER_TOKEN"),
+		Port:                     get("PORT", "8080"),
+		GCSUploadURLBase:         get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/synthify-uploads"),
+		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
+		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
+		InternalWorkerToken:      os.Getenv("INTERNAL_WORKER_TOKEN"),
 	}
 }
 
@@ -71,6 +75,10 @@ func LoadService() Service {
 
 func (c LLM) Enabled() bool {
 	return c.GeminiAPIKey != ""
+}
+
+func FirebaseAuthEmulatorEnabled() bool {
+	return os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != ""
 }
 
 func get(key, fallback string) string {

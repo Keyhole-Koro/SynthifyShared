@@ -9,6 +9,7 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/Keyhole-Koro/SynthifyShared/config"
 )
 
 type contextKey string
@@ -26,6 +27,29 @@ func CurrentUser(ctx context.Context) (AuthUser, bool) {
 }
 
 func WithAuth(projectID string, next http.Handler) http.Handler {
+	// When running against the Firebase Auth emulator, accept X-E2E-User-Id
+	// header instead of a real JWT so local dev works without Firebase login.
+	if config.FirebaseAuthEmulatorEnabled() {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			userID := strings.TrimSpace(r.Header.Get("X-E2E-User-Id"))
+			if userID == "" {
+				log.Printf("Auth failure: missing X-E2E-User-Id header")
+				http.Error(w, "missing e2e user header", http.StatusUnauthorized)
+				return
+			}
+			user := AuthUser{
+				ID:    userID,
+				Email: strings.TrimSpace(r.Header.Get("X-E2E-User-Email")),
+			}
+			ctx := context.WithValue(r.Context(), authUserContextKey, user)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+
 	client, err := newFirebaseAuthClient(projectID)
 	if err != nil {
 		panic(err)
