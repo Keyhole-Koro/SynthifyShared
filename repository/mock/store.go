@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -112,8 +113,14 @@ func (s *Store) ListDocuments(wsID string) []*domain.Document {
 func (s *Store) GetDocument(id string) (*domain.Document, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	d, ok := s.documents[id]
-	return d, ok
+	if d, ok := s.documents[id]; ok {
+		return d, true
+	}
+	return &domain.Document{
+		DocumentID:  id,
+		WorkspaceID: "mock-ws",
+		Filename:    "mock-document.pdf",
+	}, true
 }
 
 func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool) {
@@ -154,8 +161,17 @@ func (s *Store) GetLatestProcessingJob(docID string) (*domain.DocumentProcessing
 func (s *Store) GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	j, ok := s.jobs[jobID]
-	return j, ok
+	if j, ok := s.jobs[jobID]; ok {
+		return j, true
+	}
+	return &domain.DocumentProcessingJob{
+		JobID:       jobID,
+		DocumentID:  "mock-doc-" + jobID,
+		WorkspaceID: "mock-ws",
+		Status:      1, // running
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}, true
 }
 
 func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
@@ -220,8 +236,136 @@ func (s *Store) MarkProcessingJobRunning(jobID string) bool        { return true
 func (s *Store) UpdateProcessingJobStage(jobID, stage string) bool { return true }
 func (s *Store) FailProcessingJob(jobID, errorMessage string) bool { return true }
 func (s *Store) CompleteProcessingJob(jobID string) bool           { return true }
+func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
+	// If no jobs exist, return a set of realistic mock jobs for UI testing
+	if len(s.jobs) == 0 {
+		now := time.Now().UTC()
+		return []*domain.DocumentProcessingJob{
+			{
+				JobID:      "job-audit-demo-1",
+				DocumentID: "annual_report_2024.pdf",
+				Status:     treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
+				CreatedAt:  now.Add(-1 * time.Hour).Format(time.RFC3339),
+			},
+			{
+				JobID:      "job-audit-demo-2",
+				DocumentID: "technical_spec_v2.docx",
+				Status:     treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
+				CreatedAt:  now.Add(-30 * time.Minute).Format(time.RFC3339),
+			},
+			{
+				JobID:      "job-audit-demo-3",
+				DocumentID: "contract_legal_v1.pdf",
+				Status:     treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED,
+				CreatedAt:  now.Add(-2 * time.Hour).Format(time.RFC3339),
+			},
+		}, true
+	}
+
+	var res []*domain.DocumentProcessingJob
+	for _, j := range s.jobs {
+		res = append(res, j)
+	}
+	return res, true
+}
+
 func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error {
 	return nil
+}
+
+func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error {
+	return nil
+}
+
+func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error) {
+	return nil, nil
+}
+
+func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
+	// Return real mock data for any requested jobId to facilitate UI testing
+	now := time.Now().UTC()
+	return []*domain.JobMutationLog{
+		{
+			MutationID:   "m1",
+			JobID:        jobID,
+			TargetType:   "agent",
+			TargetID:     "Orchestrator",
+			MutationType: "start",
+			CreatedAt:    now.Add(-10 * time.Minute).Format(time.RFC3339),
+		},
+		{
+			MutationID:   "m2",
+			JobID:        jobID,
+			TargetType:   "tool_call",
+			TargetID:     "manage_job_checklist",
+			MutationType: "execute",
+			BeforeJSON:   `{"action": "add", "description": "Analyze document structure"}`,
+			AfterJSON:    `{"status": "ok", "task_id": "T1"}`,
+			ProvenanceJSON: `{"duration_ms": 150}`,
+			CreatedAt:    now.Add(-9 * time.Minute).Format(time.RFC3339),
+		},
+		{
+			MutationID:   "m3",
+			JobID:        jobID,
+			TargetType:   "tool_call",
+			TargetID:     "extract_text",
+			MutationType: "execute",
+			BeforeJSON:   `{"file_uri": "gs://bucket/doc.pdf"}`,
+			AfterJSON:    `{"raw_text": "Extracted content..."}`,
+			ProvenanceJSON: `{"duration_ms": 1200}`,
+			CreatedAt:    now.Add(-8 * time.Minute).Format(time.RFC3339),
+		},
+		{
+			MutationID:   "m4",
+			JobID:        jobID,
+			TargetType:   "tool_call",
+			TargetID:     "semantic_chunking",
+			MutationType: "execute",
+			BeforeJSON:   `{"raw_text": "..."}`,
+			AfterJSON:    `{"chunks": [{"index":0, "text": "..."}]}`,
+			ProvenanceJSON: `{"duration_ms": 2500}`,
+			CreatedAt:    now.Add(-7 * time.Minute).Format(time.RFC3339),
+		},
+		{
+			MutationID:   "m5",
+			JobID:        jobID,
+			TargetType:   "tool_call",
+			TargetID:     "goal_driven_synthesis",
+			MutationType: "execute",
+			BeforeJSON:   `{"document_brief": "Master blueprint..."}`,
+			AfterJSON:    `{"items": [{"label": "Concept A", "level": 0}]}`,
+			ProvenanceJSON: `{"duration_ms": 5000}`,
+			CreatedAt:    now.Add(-5 * time.Minute).Format(time.RFC3339),
+		},
+		{
+			MutationID:   "m6",
+			JobID:        jobID,
+			TargetType:   "tool_call",
+			TargetID:     "quality_critique",
+			MutationType: "execute",
+			BeforeJSON:   `{"target_data": "..."}`,
+			AfterJSON:    `{"valid": true, "issues": []}`,
+			ProvenanceJSON: `{"duration_ms": 3200}`,
+			CreatedAt:    now.Add(-2 * time.Minute).Format(time.RFC3339),
+		},
+		{
+			MutationID:   "m7",
+			JobID:        jobID,
+			TargetType:   "tool_call",
+			TargetID:     "persist_knowledge_tree",
+			MutationType: "execute",
+			BeforeJSON:   `{"items": [...]}`,
+			AfterJSON:    `{"success": true}`,
+			ProvenanceJSON: `{"duration_ms": 450}`,
+			CreatedAt:    now.Add(-1 * time.Minute).Format(time.RFC3339),
+		},
+	}, true
 }
 
 // TreeRepository

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -582,6 +583,18 @@ func (s *Store) CompleteProcessingJob(jobID string) bool {
 	return err == nil && rowsAffected > 0
 }
 
+func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
+	rows, err := s.q().ListAllJobs(context.Background())
+	if err != nil {
+		return nil, false
+	}
+	var res []*domain.DocumentProcessingJob
+	for _, row := range rows {
+		res = append(res, toProcessingJob(row))
+	}
+	return res, true
+}
+
 func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error {
 	tx, err := s.db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -777,6 +790,32 @@ func (s *Store) UpsertJobEvaluation(jobID string, result *domain.JobEvaluationRe
 	return tx.Commit() == nil
 }
 
+func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error {
+	job, ok := s.GetProcessingJob(jobID)
+	if !ok {
+		return fmt.Errorf("job not found: %s", jobID)
+	}
+
+	return s.q().CreateJobMutationLog(ctx, sqlcgen.CreateJobMutationLogParams{
+		MutationID:   newID(),
+		JobID:        jobID,
+		WorkspaceID:  job.WorkspaceID,
+		TargetType:   "tool_call",
+		TargetID:     toolName,
+		MutationType: "execute",
+		RiskTier:     "tier_0",
+		BeforeJson:   inputJSON,
+		AfterJson:    outputJSON,
+		ProvenanceJson: fmt.Sprintf(`{"duration_ms": %d}`, durationMs),
+		CreatedAt:    nowTime(),
+	})
+}
+
+func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error) {
+	// Stub: in real implementation, this performs vector search on PGVector.
+	return nil, nil
+}
+
 func toProcessingJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 	return &domain.DocumentProcessingJob{
 		JobID:            row.JobID,
@@ -795,6 +834,34 @@ func toProcessingJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessi
 		BudgetJSON:       row.BudgetJson,
 		CreatedAt:        row.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:        row.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool) {
+	rows, err := s.q().ListJobMutationLogs(context.Background(), jobID)
+	if err != nil {
+		return nil, false
+	}
+	var res []*domain.JobMutationLog
+	for _, row := range rows {
+		res = append(res, toMutationLog(row))
+	}
+	return res, true
+}
+
+func toMutationLog(row sqlcgen.JobMutationLog) *domain.JobMutationLog {
+	return &domain.JobMutationLog{
+		MutationID:     row.MutationID,
+		JobID:          row.JobID,
+		WorkspaceID:    row.WorkspaceID,
+		TargetType:     row.TargetType,
+		TargetID:       row.TargetID,
+		MutationType:   row.MutationType,
+		RiskTier:       row.RiskTier,
+		BeforeJSON:     row.BeforeJson,
+		AfterJSON:      row.AfterJson,
+		ProvenanceJSON: row.ProvenanceJson,
+		CreatedAt:      row.CreatedAt.UTC().Format(time.RFC3339),
 	}
 }
 

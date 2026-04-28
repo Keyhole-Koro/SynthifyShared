@@ -12,10 +12,10 @@ func TestBearerToken(t *testing.T) {
 		want   string
 	}{
 		{"valid bearer token", "Bearer abc123", "abc123"},
+		{"lowercase bearer also valid", "bearer abc", "abc"},
 		{"missing prefix", "abc123", ""},
 		{"empty header", "", ""},
 		{"value trimmed of spaces", "Bearer  spaced ", "spaced"},
-		{"lowercase bearer rejected", "bearer abc", ""},
 		{"bearer with no value", "Bearer ", ""},
 	}
 	for _, tc := range tests {

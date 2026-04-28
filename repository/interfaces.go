@@ -41,6 +41,8 @@ type DocumentRepository interface {
 	FailProcessingJob(jobID, errorMessage string) bool
 	CompleteProcessingJob(jobID string) bool
 	SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error
+	ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool)
+	ListAllJobs() ([]*domain.DocumentProcessingJob, bool)
 }
 
 type TreeRepository interface {

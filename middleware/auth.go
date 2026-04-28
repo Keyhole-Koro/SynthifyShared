@@ -3,8 +3,8 @@ package middleware
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
@@ -26,47 +26,29 @@ func CurrentUser(ctx context.Context) (AuthUser, bool) {
 }
 
 func WithAuth(projectID string, next http.Handler) http.Handler {
-	if e2eAuthEnabled() {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/health" {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			userID := strings.TrimSpace(r.Header.Get("X-E2E-User-Id"))
-			if userID == "" {
-				http.Error(w, "missing e2e user header", http.StatusUnauthorized)
-				return
-			}
-
-			user := AuthUser{
-				ID:    userID,
-				Email: strings.TrimSpace(r.Header.Get("X-E2E-User-Email")),
-			}
-			ctx := context.WithValue(r.Context(), authUserContextKey, user)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-
 	client, err := newFirebaseAuthClient(projectID)
 	if err != nil {
 		panic(err)
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("WithAuth: %s %s", r.Method, r.URL.Path)
 		if r.URL.Path == "/health" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		token := bearerToken(r.Header.Get("Authorization"))
+		authHeader := r.Header.Get("Authorization")
+		token := bearerToken(authHeader)
 		if token == "" {
+			log.Printf("Auth failure: missing or invalid Authorization header: %q", authHeader)
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
 
 		idToken, err := client.VerifyIDToken(r.Context(), token)
 		if err != nil {
+			log.Printf("Auth failure: VerifyIDToken error: %v", err)
 			http.Error(w, "invalid bearer token", http.StatusUnauthorized)
 			return
 		}
@@ -99,18 +81,9 @@ func ContextWithUser(ctx context.Context, user AuthUser) context.Context {
 }
 
 func bearerToken(header string) string {
-	const prefix = "Bearer "
-	if !strings.HasPrefix(header, prefix) {
+	const prefix = "bearer "
+	if !strings.HasPrefix(strings.ToLower(header), prefix) {
 		return ""
 	}
-	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
-}
-
-func e2eAuthEnabled() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("E2E_AUTH_ENABLED"))) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
+	return strings.TrimSpace(header[len(prefix):])
 }

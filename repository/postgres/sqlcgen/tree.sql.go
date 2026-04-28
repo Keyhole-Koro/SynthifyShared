@@ -108,16 +108,16 @@ WHERE id = $1
 `
 
 type GetItemRow struct {
-	ID          string
-	WorkspaceID string
-	ParentID    sql.NullString
-	Label       string
-	Level       int32
-	Description string
-	SummaryHtml string
-	CreatedBy   string
+	ID              string
+	WorkspaceID     string
+	ParentID        sql.NullString
+	Label           string
+	Level           int32
+	Description     string
+	SummaryHtml     string
+	CreatedBy       string
 	GovernanceState string
-	CreatedAt   time.Time
+	CreatedAt       time.Time
 }
 
 func (q *Queries) GetItem(ctx context.Context, id string) (GetItemRow, error) {
@@ -245,17 +245,17 @@ WHERE tree_items.parent_id = $1
 `
 
 type ListChildItemsRow struct {
-	ID          string
-	WorkspaceID string
-	ParentID    sql.NullString
-	Label       string
-	Level       int32
-	Description string
-	SummaryHtml string
-	CreatedBy   string
+	ID              string
+	WorkspaceID     string
+	ParentID        sql.NullString
+	Label           string
+	Level           int32
+	Description     string
+	SummaryHtml     string
+	CreatedBy       string
 	GovernanceState string
-	CreatedAt   time.Time
-	HasChildren bool
+	CreatedAt       time.Time
+	HasChildren     bool
 }
 
 func (q *Queries) ListChildItems(ctx context.Context, parentID sql.NullString) ([]ListChildItemsRow, error) {
@@ -345,16 +345,16 @@ ORDER BY created_at ASC
 `
 
 type ListItemsByWorkspaceRow struct {
-	ID          string
-	WorkspaceID string
-	ParentID    sql.NullString
-	Label       string
-	Level       int32
-	Description string
-	SummaryHtml string
-	CreatedBy   string
+	ID              string
+	WorkspaceID     string
+	ParentID        sql.NullString
+	Label           string
+	Level           int32
+	Description     string
+	SummaryHtml     string
+	CreatedBy       string
 	GovernanceState string
-	CreatedAt   time.Time
+	CreatedAt       time.Time
 }
 
 func (q *Queries) ListItemsByWorkspace(ctx context.Context, workspaceID string) ([]ListItemsByWorkspaceRow, error) {

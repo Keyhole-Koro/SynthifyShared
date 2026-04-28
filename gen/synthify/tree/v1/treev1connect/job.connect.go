@@ -50,6 +50,11 @@ const (
 	// JobServiceRejectJobApprovalProcedure is the fully-qualified name of the JobService's
 	// RejectJobApproval RPC.
 	JobServiceRejectJobApprovalProcedure = "/synthify.tree.v1.JobService/RejectJobApproval"
+	// JobServiceListJobMutationLogsProcedure is the fully-qualified name of the JobService's
+	// ListJobMutationLogs RPC.
+	JobServiceListJobMutationLogsProcedure = "/synthify.tree.v1.JobService/ListJobMutationLogs"
+	// JobServiceListAllJobsProcedure is the fully-qualified name of the JobService's ListAllJobs RPC.
+	JobServiceListAllJobsProcedure = "/synthify.tree.v1.JobService/ListAllJobs"
 )
 
 // JobServiceClient is a client for the synthify.tree.v1.JobService service.
@@ -60,6 +65,8 @@ type JobServiceClient interface {
 	RequestJobApproval(context.Context, *connect.Request[v1.RequestJobApprovalRequest]) (*connect.Response[v1.RequestJobApprovalResponse], error)
 	ApproveJobApproval(context.Context, *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error)
 	RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error)
+	ListJobMutationLogs(context.Context, *connect.Request[v1.ListJobMutationLogsRequest]) (*connect.Response[v1.ListJobMutationLogsResponse], error)
+	ListAllJobs(context.Context, *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error)
 }
 
 // NewJobServiceClient constructs a client for the synthify.tree.v1.JobService service. By default,
@@ -109,6 +116,18 @@ func NewJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(jobServiceMethods.ByName("RejectJobApproval")),
 			connect.WithClientOptions(opts...),
 		),
+		listJobMutationLogs: connect.NewClient[v1.ListJobMutationLogsRequest, v1.ListJobMutationLogsResponse](
+			httpClient,
+			baseURL+JobServiceListJobMutationLogsProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("ListJobMutationLogs")),
+			connect.WithClientOptions(opts...),
+		),
+		listAllJobs: connect.NewClient[v1.ListAllJobsRequest, v1.ListAllJobsResponse](
+			httpClient,
+			baseURL+JobServiceListAllJobsProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("ListAllJobs")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -120,6 +139,8 @@ type jobServiceClient struct {
 	requestJobApproval      *connect.Client[v1.RequestJobApprovalRequest, v1.RequestJobApprovalResponse]
 	approveJobApproval      *connect.Client[v1.ApproveJobApprovalRequest, v1.ApproveJobApprovalResponse]
 	rejectJobApproval       *connect.Client[v1.RejectJobApprovalRequest, v1.RejectJobApprovalResponse]
+	listJobMutationLogs     *connect.Client[v1.ListJobMutationLogsRequest, v1.ListJobMutationLogsResponse]
+	listAllJobs             *connect.Client[v1.ListAllJobsRequest, v1.ListAllJobsResponse]
 }
 
 // GetJobStatus calls synthify.tree.v1.JobService.GetJobStatus.
@@ -152,6 +173,16 @@ func (c *jobServiceClient) RejectJobApproval(ctx context.Context, req *connect.R
 	return c.rejectJobApproval.CallUnary(ctx, req)
 }
 
+// ListJobMutationLogs calls synthify.tree.v1.JobService.ListJobMutationLogs.
+func (c *jobServiceClient) ListJobMutationLogs(ctx context.Context, req *connect.Request[v1.ListJobMutationLogsRequest]) (*connect.Response[v1.ListJobMutationLogsResponse], error) {
+	return c.listJobMutationLogs.CallUnary(ctx, req)
+}
+
+// ListAllJobs calls synthify.tree.v1.JobService.ListAllJobs.
+func (c *jobServiceClient) ListAllJobs(ctx context.Context, req *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error) {
+	return c.listAllJobs.CallUnary(ctx, req)
+}
+
 // JobServiceHandler is an implementation of the synthify.tree.v1.JobService service.
 type JobServiceHandler interface {
 	GetJobStatus(context.Context, *connect.Request[v1.GetJobStatusRequest]) (*connect.Response[v1.GetJobStatusResponse], error)
@@ -160,6 +191,8 @@ type JobServiceHandler interface {
 	RequestJobApproval(context.Context, *connect.Request[v1.RequestJobApprovalRequest]) (*connect.Response[v1.RequestJobApprovalResponse], error)
 	ApproveJobApproval(context.Context, *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error)
 	RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error)
+	ListJobMutationLogs(context.Context, *connect.Request[v1.ListJobMutationLogsRequest]) (*connect.Response[v1.ListJobMutationLogsResponse], error)
+	ListAllJobs(context.Context, *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error)
 }
 
 // NewJobServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -205,6 +238,18 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(jobServiceMethods.ByName("RejectJobApproval")),
 		connect.WithHandlerOptions(opts...),
 	)
+	jobServiceListJobMutationLogsHandler := connect.NewUnaryHandler(
+		JobServiceListJobMutationLogsProcedure,
+		svc.ListJobMutationLogs,
+		connect.WithSchema(jobServiceMethods.ByName("ListJobMutationLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
+	jobServiceListAllJobsHandler := connect.NewUnaryHandler(
+		JobServiceListAllJobsProcedure,
+		svc.ListAllJobs,
+		connect.WithSchema(jobServiceMethods.ByName("ListAllJobs")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.tree.v1.JobService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case JobServiceGetJobStatusProcedure:
@@ -219,6 +264,10 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 			jobServiceApproveJobApprovalHandler.ServeHTTP(w, r)
 		case JobServiceRejectJobApprovalProcedure:
 			jobServiceRejectJobApprovalHandler.ServeHTTP(w, r)
+		case JobServiceListJobMutationLogsProcedure:
+			jobServiceListJobMutationLogsHandler.ServeHTTP(w, r)
+		case JobServiceListAllJobsProcedure:
+			jobServiceListAllJobsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -250,4 +299,12 @@ func (UnimplementedJobServiceHandler) ApproveJobApproval(context.Context, *conne
 
 func (UnimplementedJobServiceHandler) RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.JobService.RejectJobApproval is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) ListJobMutationLogs(context.Context, *connect.Request[v1.ListJobMutationLogsRequest]) (*connect.Response[v1.ListJobMutationLogsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.JobService.ListJobMutationLogs is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) ListAllJobs(context.Context, *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.JobService.ListAllJobs is not implemented"))
 }

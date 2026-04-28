@@ -36,7 +36,7 @@ func LoadAPI() API {
 	uploadBase := get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/synthify-uploads")
 	return API{
 		Port:                  get("PORT", "8080"),
-		CORSAllowedOrigins:    get("CORS_ALLOWED_ORIGINS", "http://localhost:5173"),
+		CORSAllowedOrigins:    get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
 		GCSUploadURLBase:      uploadBase,
 		InternalGCSUploadBase: get("INTERNAL_GCS_UPLOAD_URL_BASE", uploadBase),
 		FirebaseProjectID:     os.Getenv("FIREBASE_PROJECT_ID"),

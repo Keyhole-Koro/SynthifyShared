@@ -34,6 +34,8 @@ type Store interface {
 	UpsertJobEvaluation(jobID string, result *domain.JobEvaluationResult) bool
 	EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool)
 	ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool)
+	ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool)
+	ListAllJobs() ([]*domain.DocumentProcessingJob, bool)
 	RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
 	ApproveJobApproval(jobID, approvalID, reviewedBy string) bool
 	RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool
@@ -43,6 +45,8 @@ type Store interface {
 	FailProcessingJob(jobID, errorMessage string) bool
 	CompleteProcessingJob(jobID string) bool
 	SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error
+	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
+	SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error)
 	GetOrCreateTree(wsID string) (*domain.Tree, error)
 	GetTreeByWorkspace(wsID string) ([]*domain.Item, bool)
 	GetWorkspaceRootItemID(wsID string) (string, bool)

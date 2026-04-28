@@ -273,6 +273,45 @@ func (q *Queries) CreateJobCapability(ctx context.Context, arg CreateJobCapabili
 	return err
 }
 
+const createJobMutationLog = `-- name: CreateJobMutationLog :exec
+INSERT INTO job_mutation_logs (
+  mutation_id, job_id, workspace_id, target_type, target_id, mutation_type, 
+  risk_tier, before_json, after_json, provenance_json, created_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+`
+
+type CreateJobMutationLogParams struct {
+	MutationID     string
+	JobID          string
+	WorkspaceID    string
+	TargetType     string
+	TargetID       string
+	MutationType   string
+	RiskTier       string
+	BeforeJson     string
+	AfterJson      string
+	ProvenanceJson string
+	CreatedAt      time.Time
+}
+
+func (q *Queries) CreateJobMutationLog(ctx context.Context, arg CreateJobMutationLogParams) error {
+	_, err := q.db.ExecContext(ctx, createJobMutationLog,
+		arg.MutationID,
+		arg.JobID,
+		arg.WorkspaceID,
+		arg.TargetType,
+		arg.TargetID,
+		arg.MutationType,
+		arg.RiskTier,
+		arg.BeforeJson,
+		arg.AfterJson,
+		arg.ProvenanceJson,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const createProcessingJob = `-- name: CreateProcessingJob :exec
 INSERT INTO document_processing_jobs (
   job_id, document_id, workspace_id, job_type, status, current_stage, error_message, params_json,
@@ -513,6 +552,56 @@ func (q *Queries) GetProcessingJob(ctx context.Context, jobID string) (DocumentP
 	return i, err
 }
 
+const listAllJobs = `-- name: ListAllJobs :many
+SELECT job_id, document_id, workspace_id, job_type, status, current_stage, error_message, params_json,
+       requested_by, capability_id, execution_plan_id, plan_status, evaluation_status, retry_count, budget_json,
+       created_at, updated_at
+FROM document_processing_jobs
+ORDER BY created_at DESC
+LIMIT 100
+`
+
+func (q *Queries) ListAllJobs(ctx context.Context) ([]DocumentProcessingJob, error) {
+	rows, err := q.db.QueryContext(ctx, listAllJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DocumentProcessingJob
+	for rows.Next() {
+		var i DocumentProcessingJob
+		if err := rows.Scan(
+			&i.JobID,
+			&i.DocumentID,
+			&i.WorkspaceID,
+			&i.JobType,
+			&i.Status,
+			&i.CurrentStage,
+			&i.ErrorMessage,
+			&i.ParamsJson,
+			&i.RequestedBy,
+			&i.CapabilityID,
+			&i.ExecutionPlanID,
+			&i.PlanStatus,
+			&i.EvaluationStatus,
+			&i.RetryCount,
+			&i.BudgetJson,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentChunks = `-- name: ListDocumentChunks :many
 SELECT chunk_id, document_id, heading, text, source_page
 FROM document_chunks
@@ -630,6 +719,51 @@ func (q *Queries) ListJobApprovalRequests(ctx context.Context, jobID string) ([]
 	return items, nil
 }
 
+const listJobMutationLogs = `-- name: ListJobMutationLogs :many
+SELECT mutation_id, job_id, plan_id, capability_id, workspace_id, target_type, target_id, mutation_type, 
+       risk_tier, before_json, after_json, provenance_json, created_at
+FROM job_mutation_logs
+WHERE job_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListJobMutationLogs(ctx context.Context, jobID string) ([]JobMutationLog, error) {
+	rows, err := q.db.QueryContext(ctx, listJobMutationLogs, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobMutationLog
+	for rows.Next() {
+		var i JobMutationLog
+		if err := rows.Scan(
+			&i.MutationID,
+			&i.JobID,
+			&i.PlanID,
+			&i.CapabilityID,
+			&i.WorkspaceID,
+			&i.TargetType,
+			&i.TargetID,
+			&i.MutationType,
+			&i.RiskTier,
+			&i.BeforeJson,
+			&i.AfterJson,
+			&i.ProvenanceJson,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markProcessingJobRunning = `-- name: MarkProcessingJobRunning :execrows
 UPDATE document_processing_jobs
 SET status = 'running',
@@ -703,6 +837,24 @@ func (q *Queries) UpdateJobExecutionPlanStatus(ctx context.Context, arg UpdateJo
 	return result.RowsAffected()
 }
 
+const updateProcessingJobEvaluationState = `-- name: UpdateProcessingJobEvaluationState :exec
+UPDATE document_processing_jobs
+SET evaluation_status = $2,
+    updated_at = $3
+WHERE job_id = $1
+`
+
+type UpdateProcessingJobEvaluationStateParams struct {
+	JobID            string
+	EvaluationStatus string
+	UpdatedAt        time.Time
+}
+
+func (q *Queries) UpdateProcessingJobEvaluationState(ctx context.Context, arg UpdateProcessingJobEvaluationStateParams) error {
+	_, err := q.db.ExecContext(ctx, updateProcessingJobEvaluationState, arg.JobID, arg.EvaluationStatus, arg.UpdatedAt)
+	return err
+}
+
 const updateProcessingJobPlanState = `-- name: UpdateProcessingJobPlanState :exec
 UPDATE document_processing_jobs
 SET execution_plan_id = $2,
@@ -723,28 +875,6 @@ func (q *Queries) UpdateProcessingJobPlanState(ctx context.Context, arg UpdatePr
 		arg.JobID,
 		arg.ExecutionPlanID,
 		arg.PlanStatus,
-		arg.UpdatedAt,
-	)
-	return err
-}
-
-const updateProcessingJobEvaluationState = `-- name: UpdateProcessingJobEvaluationState :exec
-UPDATE document_processing_jobs
-SET evaluation_status = $2,
-    updated_at = $3
-WHERE job_id = $1
-`
-
-type UpdateProcessingJobEvaluationStateParams struct {
-	JobID            string
-	EvaluationStatus string
-	UpdatedAt        time.Time
-}
-
-func (q *Queries) UpdateProcessingJobEvaluationState(ctx context.Context, arg UpdateProcessingJobEvaluationStateParams) error {
-	_, err := q.db.ExecContext(ctx, updateProcessingJobEvaluationState,
-		arg.JobID,
-		arg.EvaluationStatus,
 		arg.UpdatedAt,
 	)
 	return err
