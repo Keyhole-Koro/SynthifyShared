@@ -111,11 +111,12 @@ type TreeItem struct {
 }
 
 type DocumentChunk struct {
-	ChunkID    string `json:"chunk_id"`
-	DocumentID string `json:"document_id"`
-	Heading    string `json:"heading"`
-	Text       string `json:"text"`
-	SourcePage int    `json:"source_page,omitempty"`
+	ChunkID    string    `json:"chunk_id"`
+	DocumentID string    `json:"document_id"`
+	Heading    string    `json:"heading"`
+	Text       string    `json:"text"`
+	SourcePage int       `json:"source_page,omitempty"`
+	Embedding  []float32 `json:"embedding,omitempty"`
 }
 
 type Job struct {

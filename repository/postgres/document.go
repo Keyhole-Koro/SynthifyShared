@@ -12,6 +12,7 @@ import (
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
 	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
 	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
+	pgvector "github.com/pgvector/pgvector-go"
 )
 
 func (s *Store) ListDocuments(wsID string) []*domain.Document {
@@ -43,7 +44,13 @@ func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, b
 
 	chunks := make([]*domain.DocumentChunk, 0, len(rows))
 	for _, row := range rows {
-		chunks = append(chunks, toDocumentChunk(row))
+		chunks = append(chunks, &domain.DocumentChunk{
+			ChunkID:    row.ChunkID,
+			DocumentID: row.DocumentID,
+			Heading:    row.Heading,
+			Text:       row.Text,
+			SourcePage: int(row.SourcePage.Int32),
+		})
 	}
 	return chunks, true
 }
@@ -611,13 +618,17 @@ func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentC
 		if chunkID == "" {
 			chunkID = "chk_" + documentID + "_" + leftPadIndex(i)
 		}
-		if err := qtx.CreateDocumentChunk(context.Background(), sqlcgen.CreateDocumentChunkParams{
+		params := sqlcgen.CreateDocumentChunkParams{
 			ChunkID:    chunkID,
 			DocumentID: documentID,
 			Heading:    chunk.Heading,
 			Text:       chunk.Text,
 			SourcePage: sql.NullInt32{Int32: int32(chunk.SourcePage), Valid: true},
-		}); err != nil {
+		}
+		if len(chunk.Embedding) > 0 {
+			params.Embedding = pgvector.NewVector(chunk.Embedding)
+		}
+		if err := qtx.CreateDocumentChunk(context.Background(), params); err != nil {
 			return err
 		}
 	}
@@ -823,7 +834,7 @@ func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query stri
 	if limit <= 0 {
 		limit = 8
 	}
-	rows, err := s.q().SearchWorkspaceDocumentChunks(ctx, sqlcgen.SearchWorkspaceDocumentChunksParams{
+	rows, err := s.q().SearchWorkspaceDocumentChunksByText(ctx, sqlcgen.SearchWorkspaceDocumentChunksByTextParams{
 		WorkspaceID: workspaceID,
 		Pattern:     buildLikePattern(query),
 		ResultLimit: int32(limit),
@@ -833,7 +844,39 @@ func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query stri
 	}
 	chunks := make([]*domain.DocumentChunk, 0, len(rows))
 	for _, row := range rows {
-		chunks = append(chunks, toDocumentChunk(row))
+		chunks = append(chunks, &domain.DocumentChunk{
+			ChunkID:    row.ChunkID,
+			DocumentID: row.DocumentID,
+			Heading:    row.Heading,
+			Text:       row.Text,
+			SourcePage: int(row.SourcePage.Int32),
+		})
+	}
+	return chunks, nil
+}
+
+func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := s.q().SearchWorkspaceDocumentChunksByVector(ctx, sqlcgen.SearchWorkspaceDocumentChunksByVectorParams{
+		QueryEmbedding: pgvector.NewVector(embedding),
+		WorkspaceID:    workspaceID,
+		MinSimilarity:  0.70,
+		ResultLimit:    int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	chunks := make([]*domain.DocumentChunk, 0, len(rows))
+	for _, row := range rows {
+		chunks = append(chunks, &domain.DocumentChunk{
+			ChunkID:    row.ChunkID,
+			DocumentID: row.DocumentID,
+			Heading:    row.Heading,
+			Text:       row.Text,
+			SourcePage: int(row.SourcePage.Int32),
+		})
 	}
 	return chunks, nil
 }

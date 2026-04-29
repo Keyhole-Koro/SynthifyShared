@@ -47,6 +47,7 @@ type Store interface {
 	SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 	SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error)
+	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
 	GetOrCreateTree(wsID string) (*domain.Tree, error)
 	GetTreeByWorkspace(wsID string) ([]*domain.Item, bool)
 	GetWorkspaceRootItemID(wsID string) (string, bool)

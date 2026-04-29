@@ -7,6 +7,8 @@ package sqlcgen
 import (
 	"database/sql"
 	"time"
+
+	pgvector "github.com/pgvector/pgvector-go"
 )
 
 type Account struct {
@@ -45,6 +47,7 @@ type DocumentChunk struct {
 	Heading    string
 	Text       string
 	SourcePage sql.NullInt32
+	Embedding  pgvector.Vector
 }
 
 type DocumentProcessingJob struct {

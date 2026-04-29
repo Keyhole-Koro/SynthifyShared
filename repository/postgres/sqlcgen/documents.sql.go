@@ -9,6 +9,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	pgvector "github.com/pgvector/pgvector-go"
 )
 
 const approveJobApproval = `-- name: ApproveJobApproval :execrows
@@ -172,8 +174,8 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 }
 
 const createDocumentChunk = `-- name: CreateDocumentChunk :exec
-INSERT INTO document_chunks (chunk_id, document_id, heading, text, source_page)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO document_chunks (chunk_id, document_id, heading, text, source_page, embedding)
+VALUES ($1, $2, $3, $4, $5, $6::vector)
 `
 
 type CreateDocumentChunkParams struct {
@@ -182,6 +184,7 @@ type CreateDocumentChunkParams struct {
 	Heading    string
 	Text       string
 	SourcePage sql.NullInt32
+	Embedding  pgvector.Vector
 }
 
 func (q *Queries) CreateDocumentChunk(ctx context.Context, arg CreateDocumentChunkParams) error {
@@ -191,6 +194,7 @@ func (q *Queries) CreateDocumentChunk(ctx context.Context, arg CreateDocumentChu
 		arg.Heading,
 		arg.Text,
 		arg.SourcePage,
+		arg.Embedding,
 	)
 	return err
 }
@@ -609,15 +613,23 @@ WHERE document_id = $1
 ORDER BY chunk_id
 `
 
-func (q *Queries) ListDocumentChunks(ctx context.Context, documentID string) ([]DocumentChunk, error) {
+type ListDocumentChunksRow struct {
+	ChunkID    string
+	DocumentID string
+	Heading    string
+	Text       string
+	SourcePage sql.NullInt32
+}
+
+func (q *Queries) ListDocumentChunks(ctx context.Context, documentID string) ([]ListDocumentChunksRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDocumentChunks, documentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []DocumentChunk
+	var items []ListDocumentChunksRow
 	for rows.Next() {
-		var i DocumentChunk
+		var i ListDocumentChunksRow
 		if err := rows.Scan(
 			&i.ChunkID,
 			&i.DocumentID,
@@ -817,7 +829,7 @@ func (q *Queries) RejectJobApproval(ctx context.Context, arg RejectJobApprovalPa
 	return result.RowsAffected()
 }
 
-const searchWorkspaceDocumentChunks = `-- name: SearchWorkspaceDocumentChunks :many
+const searchWorkspaceDocumentChunksByText = `-- name: SearchWorkspaceDocumentChunksByText :many
 SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page
 FROM document_chunks c
 INNER JOIN documents d ON d.document_id = c.document_id
@@ -827,27 +839,98 @@ ORDER BY c.chunk_id
 LIMIT $3
 `
 
-type SearchWorkspaceDocumentChunksParams struct {
+type SearchWorkspaceDocumentChunksByTextParams struct {
 	WorkspaceID string
 	Pattern     string
 	ResultLimit int32
 }
 
-func (q *Queries) SearchWorkspaceDocumentChunks(ctx context.Context, arg SearchWorkspaceDocumentChunksParams) ([]DocumentChunk, error) {
-	rows, err := q.db.QueryContext(ctx, searchWorkspaceDocumentChunks, arg.WorkspaceID, arg.Pattern, arg.ResultLimit)
+type SearchWorkspaceDocumentChunksByTextRow struct {
+	ChunkID    string
+	DocumentID string
+	Heading    string
+	Text       string
+	SourcePage sql.NullInt32
+}
+
+func (q *Queries) SearchWorkspaceDocumentChunksByText(ctx context.Context, arg SearchWorkspaceDocumentChunksByTextParams) ([]SearchWorkspaceDocumentChunksByTextRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchWorkspaceDocumentChunksByText, arg.WorkspaceID, arg.Pattern, arg.ResultLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []DocumentChunk
+	var items []SearchWorkspaceDocumentChunksByTextRow
 	for rows.Next() {
-		var i DocumentChunk
+		var i SearchWorkspaceDocumentChunksByTextRow
 		if err := rows.Scan(
 			&i.ChunkID,
 			&i.DocumentID,
 			&i.Heading,
 			&i.Text,
 			&i.SourcePage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchWorkspaceDocumentChunksByVector = `-- name: SearchWorkspaceDocumentChunksByVector :many
+SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page,
+       1 - (c.embedding <=> $1::vector) AS similarity
+FROM document_chunks c
+INNER JOIN documents d ON d.document_id = c.document_id
+WHERE d.workspace_id = $2
+  AND c.embedding IS NOT NULL
+  AND 1 - (c.embedding <=> $1::vector) >= $3::float8
+ORDER BY c.embedding <=> $1::vector
+LIMIT $4
+`
+
+type SearchWorkspaceDocumentChunksByVectorParams struct {
+	QueryEmbedding pgvector.Vector
+	WorkspaceID    string
+	MinSimilarity  float64
+	ResultLimit    int32
+}
+
+type SearchWorkspaceDocumentChunksByVectorRow struct {
+	ChunkID    string
+	DocumentID string
+	Heading    string
+	Text       string
+	SourcePage sql.NullInt32
+	Similarity float64
+}
+
+func (q *Queries) SearchWorkspaceDocumentChunksByVector(ctx context.Context, arg SearchWorkspaceDocumentChunksByVectorParams) ([]SearchWorkspaceDocumentChunksByVectorRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchWorkspaceDocumentChunksByVector,
+		arg.QueryEmbedding,
+		arg.WorkspaceID,
+		arg.MinSimilarity,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchWorkspaceDocumentChunksByVectorRow
+	for rows.Next() {
+		var i SearchWorkspaceDocumentChunksByVectorRow
+		if err := rows.Scan(
+			&i.ChunkID,
+			&i.DocumentID,
+			&i.Heading,
+			&i.Text,
+			&i.SourcePage,
+			&i.Similarity,
 		); err != nil {
 			return nil, err
 		}

@@ -321,6 +321,10 @@ func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query stri
 	return out, nil
 }
 
+func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error) {
+	return s.SearchRelatedChunks(ctx, workspaceID, "", limit)
+}
+
 func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
