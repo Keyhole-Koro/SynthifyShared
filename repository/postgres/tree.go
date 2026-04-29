@@ -10,8 +10,7 @@ import (
 	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
 )
 
-func (s *Store) GetOrCreateTree(wsID string) (*domain.Tree, error) {
-	ctx := context.Background()
+func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {
 	// 1 ワークスペース = 1 ツリー。ルートアイテムがあればそれを返す。
 	root, err := s.q().GetTreeRoot(ctx, wsID)
 	if err == nil {
@@ -45,11 +44,10 @@ func (s *Store) GetOrCreateTree(wsID string) (*domain.Tree, error) {
 		return nil, fmt.Errorf("failed to create root item: %w", err)
 	}
 
-	return s.GetOrCreateTree(wsID)
+	return s.GetOrCreateTree(ctx, wsID)
 }
 
-func (s *Store) GetTreeByWorkspace(wsID string) ([]*domain.Item, bool) {
-	ctx := context.Background()
+func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, bool) {
 	rows, err := s.q().ListItemsByWorkspace(ctx, wsID)
 	if err != nil {
 		return nil, false
@@ -61,16 +59,16 @@ func (s *Store) GetTreeByWorkspace(wsID string) ([]*domain.Item, bool) {
 	return items, true
 }
 
-func (s *Store) GetWorkspaceRootItemID(wsID string) (string, bool) {
-	root, err := s.q().GetTreeRoot(context.Background(), wsID)
+func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, bool) {
+	root, err := s.q().GetTreeRoot(ctx, wsID)
 	if err != nil {
 		return "", false
 	}
 	return root.ID, true
 }
 
-func (s *Store) FindPaths(wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool) {
-	items, ok := s.GetTreeByWorkspace(wsID)
+func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool) {
+	items, ok := s.GetTreeByWorkspace(ctx, wsID)
 	if !ok || len(items) == 0 {
 		return nil, nil, false
 	}
@@ -99,9 +97,7 @@ func (s *Store) FindPaths(wsID, sourceItemID, targetItemID string, maxDepth, lim
 	return items, paths, len(paths) > 0
 }
 
-func (s *Store) GetSubtree(rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
-	ctx := context.Background()
-
+func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
 	// ルートアイテム取得
 	rootRow, err := s.q().GetItem(ctx, rootItemID)
 	if err != nil {

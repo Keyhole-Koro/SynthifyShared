@@ -42,7 +42,7 @@ func NewStore() *Store {
 }
 
 // AccountRepository
-func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
+func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if a, ok := s.accounts[userID]; ok {
@@ -58,7 +58,7 @@ func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
 	return a, nil
 }
 
-func (s *Store) GetAccount(id string) (*domain.Account, error) {
+func (s *Store) GetAccount(ctx context.Context, id string) (*domain.Account, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if a, ok := s.accounts[id]; ok {
@@ -68,7 +68,7 @@ func (s *Store) GetAccount(id string) (*domain.Account, error) {
 }
 
 // WorkspaceRepository
-func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
+func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var res []*domain.Workspace
@@ -78,16 +78,16 @@ func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
 	return res
 }
 
-func (s *Store) GetWorkspace(id string) (*domain.Workspace, bool) {
+func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	w, ok := s.workspaces[id]
 	return w, ok
 }
 
-func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool { return true }
+func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool { return true }
 
-func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
+func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	w := &domain.Workspace{
@@ -101,7 +101,7 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 }
 
 // DocumentRepository
-func (s *Store) ListDocuments(wsID string) []*domain.Document {
+func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Document {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var res []*domain.Document
@@ -113,7 +113,7 @@ func (s *Store) ListDocuments(wsID string) []*domain.Document {
 	return res
 }
 
-func (s *Store) GetDocument(id string) (*domain.Document, bool) {
+func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if d, ok := s.documents[id]; ok {
@@ -126,7 +126,7 @@ func (s *Store) GetDocument(id string) (*domain.Document, bool) {
 	}, true
 }
 
-func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool) {
+func (s *Store) GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	chunks, ok := s.chunks[documentID]
@@ -138,11 +138,11 @@ func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, b
 	return copied, true
 }
 
-func (s *Store) GetJobPlanningSignals(documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
+func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
 	return &domain.JobPlanningSignals{DocumentID: documentID, WorkspaceID: workspaceID}, true
 }
 
-func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
+func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	d := &domain.Document{
@@ -158,7 +158,7 @@ func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, file
 	return d, "http://mock-upload-url/" + d.DocumentID
 }
 
-func (s *Store) GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool) {
+func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, j := range s.jobs {
@@ -169,7 +169,7 @@ func (s *Store) GetLatestProcessingJob(docID string) (*domain.DocumentProcessing
 	return nil, false
 }
 
-func (s *Store) GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool) {
+func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if j, ok := s.jobs[jobID]; ok {
@@ -185,50 +185,54 @@ func (s *Store) GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, b
 	}, true
 }
 
-func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
+func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	c, ok := s.capabilities[jobID]
 	return c, ok
 }
 
-func (s *Store) GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool) {
+func (s *Store) GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	p, ok := s.plans[jobID]
 	return p, ok
 }
 
-func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool {
+func (s *Store) UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.plans[jobID] = plan
 	return true
 }
 
-func (s *Store) UpsertJobEvaluation(jobID string, result *domain.JobEvaluationResult) bool {
+func (s *Store) UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) bool {
 	return true
 }
 
-func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
+func (s *Store) EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, bool) {
 	return &domain.JobEvaluationResult{JobID: jobID, Passed: true, Summary: "mock eval passed"}, true
 }
 
-func (s *Store) ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool) {
+func (s *Store) ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	a, ok := s.approvals[jobID]
 	return a, ok
 }
 
-func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool) {
+func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool) {
 	return &domain.JobApprovalRequest{JobID: jobID, Status: "pending"}, true
 }
 
-func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool        { return true }
-func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool { return true }
+func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) bool {
+	return true
+}
+func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) bool {
+	return true
+}
 
-func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	j := &domain.DocumentProcessingJob{
@@ -243,11 +247,11 @@ func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.Jo
 	return j
 }
 
-func (s *Store) MarkProcessingJobRunning(jobID string) bool        { return true }
-func (s *Store) UpdateProcessingJobStage(jobID, stage string) bool { return true }
-func (s *Store) FailProcessingJob(jobID, errorMessage string) bool { return true }
-func (s *Store) CompleteProcessingJob(jobID string) bool           { return true }
-func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
+func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) bool        { return true }
+func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) bool { return true }
+func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) bool { return true }
+func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) bool           { return true }
+func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -283,7 +287,7 @@ func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
 	return res, true
 }
 
-func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error {
+func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	copied := make([]*domain.DocumentChunk, len(chunks))
@@ -325,7 +329,7 @@ func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID str
 	return s.SearchRelatedChunks(ctx, workspaceID, "", limit)
 }
 
-func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool) {
+func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -410,11 +414,11 @@ func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, boo
 }
 
 // TreeRepository
-func (s *Store) GetOrCreateTree(wsID string) (*domain.Tree, error) {
+func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {
 	return &domain.Tree{TreeID: wsID, WorkspaceID: wsID, Name: "default"}, nil
 }
 
-func (s *Store) GetTreeByWorkspace(wsID string) ([]*domain.Item, bool) {
+func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	wsItems, ok := s.items[wsID]
@@ -428,7 +432,7 @@ func (s *Store) GetTreeByWorkspace(wsID string) ([]*domain.Item, bool) {
 	return res, true
 }
 
-func (s *Store) GetWorkspaceRootItemID(wsID string) (string, bool) {
+func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	wsItems, ok := s.items[wsID]
@@ -443,15 +447,15 @@ func (s *Store) GetWorkspaceRootItemID(wsID string) (string, bool) {
 	return "", false
 }
 
-func (s *Store) FindPaths(wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool) {
-	items, ok := s.GetTreeByWorkspace(wsID)
+func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool) {
+	items, ok := s.GetTreeByWorkspace(ctx, wsID)
 	if !ok {
 		return nil, nil, false
 	}
 	return items, nil, true
 }
 
-func (s *Store) GetSubtree(rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
+func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -485,7 +489,7 @@ func (s *Store) GetSubtree(rootItemID string, maxDepth int) ([]*domain.SubtreeIt
 }
 
 // ItemRepository
-func (s *Store) GetItem(itemID string) (*domain.Item, bool) {
+func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, wsItems := range s.items {
@@ -496,7 +500,7 @@ func (s *Store) GetItem(itemID string) (*domain.Item, bool) {
 	return nil, false
 }
 
-func (s *Store) CreateItem(workspaceID, label, description, parentID, createdBy string) *domain.Item {
+func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.items[workspaceID]; !ok {
@@ -515,11 +519,11 @@ func (s *Store) CreateItem(workspaceID, label, description, parentID, createdBy 
 	return n
 }
 
-func (s *Store) CreateStructuredItemWithCapability(capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
-	return s.CreateItem(workspaceID, label, description, parentID, createdBy)
+func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
+	return s.CreateItem(ctx, workspaceID, label, description, parentID, createdBy)
 }
 
-func (s *Store) UpsertItemSource(itemID, documentID, chunkID, sourceText string, confidence float64) error {
+func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, chunkID, sourceText string, confidence float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sources[itemID] = append(s.sources[itemID], &domain.ItemSource{
@@ -532,7 +536,7 @@ func (s *Store) UpsertItemSource(itemID, documentID, chunkID, sourceText string,
 	return nil
 }
 
-func (s *Store) UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool {
+func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, wsItems := range s.items {
@@ -544,8 +548,12 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapabi
 	return false
 }
 
-func (s *Store) ApproveAlias(wsID, canonicalItemID, aliasItemID string) bool { return true }
-func (s *Store) RejectAlias(wsID, canonicalItemID, aliasItemID string) bool  { return true }
+func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
+	return true
+}
+func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
+	return true
+}
 
 var _ repository.AccountRepository = (*Store)(nil)
 var _ repository.WorkspaceRepository = (*Store)(nil)

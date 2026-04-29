@@ -11,19 +11,19 @@ import (
 	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
 )
 
-func (s *Store) GetItem(itemID string) (*domain.Item, bool) {
-	row, err := s.q().GetItem(context.Background(), itemID)
+func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, bool) {
+	row, err := s.q().GetItem(ctx, itemID)
 	if err != nil {
 		return nil, false
 	}
 	return toItemFromGetRow(row), true
 }
 
-func (s *Store) CreateItem(workspaceID, label, description, parentID, createdBy string) *domain.Item {
-	return s.createStructuredItemDirect(workspaceID, label, 0, description, "", createdBy, parentID)
+func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item {
+	return s.createStructuredItemDirect(ctx, workspaceID, label, 0, description, "", createdBy, parentID)
 }
 
-func (s *Store) createStructuredItemDirect(workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string) *domain.Item {
+func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string) *domain.Item {
 	createdAt := nowTime()
 	item := &domain.Item{
 		ItemID:      newID(),
@@ -37,13 +37,13 @@ func (s *Store) createStructuredItemDirect(workspaceID, label string, level int,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
 
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil
 	}
 	defer tx.Rollback()
 
-	if err := s.q().WithTx(tx).CreateItem(context.Background(), sqlcgen.CreateItemParams{
+	if err := s.q().WithTx(tx).CreateItem(ctx, sqlcgen.CreateItemParams{
 		ID:          item.ItemID,
 		WorkspaceID: workspaceID,
 		ParentID: sql.NullString{
@@ -62,18 +62,18 @@ func (s *Store) createStructuredItemDirect(workspaceID, label string, level int,
 	if err := tx.Commit(); err != nil {
 		return nil
 	}
-	_ = s.q().UpdateTreeTimestamp(context.Background(), sqlcgen.UpdateTreeTimestampParams{
+	_ = s.q().UpdateTreeTimestamp(ctx, sqlcgen.UpdateTreeTimestampParams{
 		ID:        item.ItemID,
 		UpdatedAt: nowTime(),
 	})
 	return item
 }
 
-func (s *Store) CreateStructuredItemWithCapability(capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
+func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
 	if !s.canMutateTree(capability, treev1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
 		return nil
 	}
-	if capability.MaxItemCreations > 0 && s.countJobMutations(jobID, "item") >= capability.MaxItemCreations {
+	if capability.MaxItemCreations > 0 && s.countJobMutations(ctx, jobID, "item") >= capability.MaxItemCreations {
 		return nil
 	}
 
@@ -92,14 +92,14 @@ func (s *Store) CreateStructuredItemWithCapability(capability *domain.JobCapabil
 		CreatedAt:         createdAt.Format(time.RFC3339),
 	}
 
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	if err := qtx.CreateStructuredItem(context.Background(), sqlcgen.CreateStructuredItemParams{
+	if err := qtx.CreateStructuredItem(ctx, sqlcgen.CreateStructuredItemParams{
 		ID:          item.ItemID,
 		WorkspaceID: workspaceID,
 		ParentID: sql.NullString{
@@ -117,7 +117,7 @@ func (s *Store) CreateStructuredItemWithCapability(capability *domain.JobCapabil
 	}); err != nil {
 		return nil
 	}
-	if err := s.logMutationTx(tx, &domain.JobMutationLog{
+	if err := s.logMutationTx(ctx, tx, &domain.JobMutationLog{
 		MutationID:     newID(),
 		JobID:          jobID,
 		CapabilityID:   capability.CapabilityID,
@@ -139,8 +139,8 @@ func (s *Store) CreateStructuredItemWithCapability(capability *domain.JobCapabil
 	return item
 }
 
-func (s *Store) UpsertItemSource(itemID, documentID, chunkID, sourceText string, confidence float64) error {
-	return s.q().UpsertItemSource(context.Background(), sqlcgen.UpsertItemSourceParams{
+func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, chunkID, sourceText string, confidence float64) error {
+	return s.q().UpsertItemSource(ctx, sqlcgen.UpsertItemSourceParams{
 		ItemID:     itemID,
 		DocumentID: documentID,
 		ChunkID:    chunkID,
@@ -149,12 +149,12 @@ func (s *Store) UpsertItemSource(itemID, documentID, chunkID, sourceText string,
 	})
 }
 
-func (s *Store) UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool {
+func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool {
 	if capability == nil || !capability.Allows(treev1.JobOperation_JOB_OPERATION_UPDATE_ITEM) || capability.IsExpired(nowTime()) {
 		return false
 	}
 
-	row, err := s.q().GetItemSummaryUpdateContext(context.Background(), itemID)
+	row, err := s.q().GetItemSummaryUpdateContext(ctx, itemID)
 	if err != nil {
 		return false
 	}
@@ -169,14 +169,14 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapabi
 	}
 
 	now := nowTime()
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	affected, err := qtx.UpdateItemSummaryAndMutation(context.Background(), sqlcgen.UpdateItemSummaryAndMutationParams{
+	affected, err := qtx.UpdateItemSummaryAndMutation(ctx, sqlcgen.UpdateItemSummaryAndMutationParams{
 		ID:                itemID,
 		SummaryHtml:       summaryHTML,
 		LastMutationJobID: jobID,
@@ -185,7 +185,7 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapabi
 	if err != nil || affected == 0 {
 		return false
 	}
-	if err := s.logMutationTx(tx, &domain.JobMutationLog{
+	if err := s.logMutationTx(ctx, tx, &domain.JobMutationLog{
 		MutationID:     newID(),
 		JobID:          jobID,
 		CapabilityID:   capability.CapabilityID,
@@ -204,8 +204,8 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapabi
 	return tx.Commit() == nil
 }
 
-func (s *Store) ApproveAlias(wsID, canonicalItemID, aliasItemID string) bool {
-	return s.q().UpsertApprovedAlias(context.Background(), sqlcgen.UpsertApprovedAliasParams{
+func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
+	return s.q().UpsertApprovedAlias(ctx, sqlcgen.UpsertApprovedAliasParams{
 		WorkspaceID:     wsID,
 		CanonicalItemID: canonicalItemID,
 		AliasItemID:     aliasItemID,
@@ -213,8 +213,8 @@ func (s *Store) ApproveAlias(wsID, canonicalItemID, aliasItemID string) bool {
 	}) == nil
 }
 
-func (s *Store) RejectAlias(wsID, canonicalItemID, aliasItemID string) bool {
-	return s.q().UpsertRejectedAlias(context.Background(), sqlcgen.UpsertRejectedAliasParams{
+func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
+	return s.q().UpsertRejectedAlias(ctx, sqlcgen.UpsertRejectedAliasParams{
 		WorkspaceID:     wsID,
 		CanonicalItemID: canonicalItemID,
 		AliasItemID:     aliasItemID,
@@ -235,8 +235,8 @@ func (s *Store) canMutateTree(capability *domain.JobCapability, op treev1.JobOpe
 	return capability.AllowsDocument(documentID)
 }
 
-func (s *Store) countJobMutations(jobID, targetType string) int {
-	count, err := s.q().CountJobMutationsByTarget(context.Background(), sqlcgen.CountJobMutationsByTargetParams{
+func (s *Store) countJobMutations(ctx context.Context, jobID, targetType string) int {
+	count, err := s.q().CountJobMutationsByTarget(ctx, sqlcgen.CountJobMutationsByTargetParams{
 		JobID:      jobID,
 		TargetType: targetType,
 	})
@@ -246,12 +246,12 @@ func (s *Store) countJobMutations(jobID, targetType string) int {
 	return int(count)
 }
 
-func (s *Store) logMutationTx(tx *sql.Tx, entry *domain.JobMutationLog) error {
+func (s *Store) logMutationTx(ctx context.Context, tx *sql.Tx, entry *domain.JobMutationLog) error {
 	createdAt, err := time.Parse(time.RFC3339, entry.CreatedAt)
 	if err != nil {
 		createdAt = nowTime()
 	}
-	return s.q().WithTx(tx).InsertJobMutationLog(context.Background(), sqlcgen.InsertJobMutationLogParams{
+	return s.q().WithTx(tx).InsertJobMutationLog(ctx, sqlcgen.InsertJobMutationLogParams{
 		MutationID:     entry.MutationID,
 		JobID:          entry.JobID,
 		PlanID:         entry.PlanID,

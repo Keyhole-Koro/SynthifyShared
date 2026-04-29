@@ -15,8 +15,8 @@ import (
 	pgvector "github.com/pgvector/pgvector-go"
 )
 
-func (s *Store) ListDocuments(wsID string) []*domain.Document {
-	rows, err := s.q().ListDocuments(context.Background(), wsID)
+func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Document {
+	rows, err := s.q().ListDocuments(ctx, wsID)
 	if err != nil {
 		return nil
 	}
@@ -28,16 +28,16 @@ func (s *Store) ListDocuments(wsID string) []*domain.Document {
 	return docs
 }
 
-func (s *Store) GetDocument(id string) (*domain.Document, bool) {
-	row, err := s.q().GetDocument(context.Background(), id)
+func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, bool) {
+	row, err := s.q().GetDocument(ctx, id)
 	if err != nil {
 		return nil, false
 	}
 	return toDocument(row), true
 }
 
-func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool) {
-	rows, err := s.q().ListDocumentChunks(context.Background(), documentID)
+func (s *Store) GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, bool) {
+	rows, err := s.q().ListDocumentChunks(ctx, documentID)
 	if err != nil {
 		return nil, false
 	}
@@ -55,7 +55,7 @@ func (s *Store) GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, b
 	return chunks, true
 }
 
-func (s *Store) GetJobPlanningSignals(documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
+func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
 	signals := &domain.JobPlanningSignals{
 		DocumentID:  documentID,
 		WorkspaceID: workspaceID,
@@ -64,21 +64,21 @@ func (s *Store) GetJobPlanningSignals(documentID, workspaceID, treeID string) (*
 		return signals, true
 	}
 
-	sameDocumentItemCount, err := s.q().CountSameDocumentItems(context.Background(), sqlcgen.CountSameDocumentItemsParams{
+	sameDocumentItemCount, err := s.q().CountSameDocumentItems(ctx, sqlcgen.CountSameDocumentItemsParams{
 		DocumentID:  documentID,
 		WorkspaceID: treeID,
 	})
 	if err != nil {
 		return nil, false
 	}
-	approvedAliasCount, err := s.q().CountApprovedAliases(context.Background(), sqlcgen.CountApprovedAliasesParams{
+	approvedAliasCount, err := s.q().CountApprovedAliases(ctx, sqlcgen.CountApprovedAliasesParams{
 		WorkspaceID:   workspaceID,
 		WorkspaceID_2: treeID,
 	})
 	if err != nil {
 		return nil, false
 	}
-	protectedAliasCount, err := s.q().CountProtectedAliases(context.Background(), sqlcgen.CountProtectedAliasesParams{
+	protectedAliasCount, err := s.q().CountProtectedAliases(ctx, sqlcgen.CountProtectedAliasesParams{
 		WorkspaceID:   workspaceID,
 		WorkspaceID_2: treeID,
 	})
@@ -92,7 +92,7 @@ func (s *Store) GetJobPlanningSignals(documentID, workspaceID, treeID string) (*
 	return signals, true
 }
 
-func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
+func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
 	createdAt := nowTime()
 	doc := &domain.Document{
 		DocumentID:  newID(),
@@ -103,7 +103,7 @@ func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, file
 		FileSize:    fileSize,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
-	err := s.q().CreateDocument(context.Background(), sqlcgen.CreateDocumentParams{
+	err := s.q().CreateDocument(ctx, sqlcgen.CreateDocumentParams{
 		DocumentID:  doc.DocumentID,
 		WorkspaceID: doc.WorkspaceID,
 		UploadedBy:  doc.UploadedBy,
@@ -118,24 +118,24 @@ func (s *Store) CreateDocument(wsID, uploadedBy, filename, mimeType string, file
 	return doc, s.uploadURLGenerator(wsID, doc.DocumentID)
 }
 
-func (s *Store) GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool) {
-	row, err := s.q().GetLatestProcessingJob(context.Background(), docID)
+func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, bool) {
+	row, err := s.q().GetLatestProcessingJob(ctx, docID)
 	if err != nil {
 		return nil, false
 	}
 	return toProcessingJob(row), true
 }
 
-func (s *Store) GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool) {
-	row, err := s.q().GetProcessingJob(context.Background(), jobID)
+func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, bool) {
+	row, err := s.q().GetProcessingJob(ctx, jobID)
 	if err != nil {
 		return nil, false
 	}
 	return toProcessingJob(row), true
 }
 
-func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
-	row, err := s.q().GetJobCapability(context.Background(), jobID)
+func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, bool) {
+	row, err := s.q().GetJobCapability(ctx, jobID)
 	if err != nil {
 		return nil, false
 	}
@@ -146,15 +146,15 @@ func (s *Store) GetJobCapability(jobID string) (*domain.JobCapability, bool) {
 	return capability, true
 }
 
-func (s *Store) GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool) {
-	row, err := s.q().GetJobExecutionPlan(context.Background(), jobID)
+func (s *Store) GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, bool) {
+	row, err := s.q().GetJobExecutionPlan(ctx, jobID)
 	if err != nil {
 		return nil, false
 	}
 	return toJobExecutionPlan(row), true
 }
 
-func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool {
+func (s *Store) UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) bool {
 	if plan == nil {
 		return false
 	}
@@ -167,14 +167,14 @@ func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPl
 		plan.Status = "draft"
 	}
 
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	if err := qtx.UpsertJobExecutionPlan(context.Background(), sqlcgen.UpsertJobExecutionPlanParams{
+	if err := qtx.UpsertJobExecutionPlan(ctx, sqlcgen.UpsertJobExecutionPlanParams{
 		PlanID:    plan.PlanID,
 		JobID:     jobID,
 		Status:    plan.Status,
@@ -186,7 +186,7 @@ func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPl
 	}); err != nil {
 		return false
 	}
-	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: plan.PlanID,
 		PlanStatus:      plan.Status,
@@ -203,13 +203,13 @@ func (s *Store) UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPl
 	return true
 }
 
-func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
-	job, ok := s.GetProcessingJob(jobID)
+func (s *Store) EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, bool) {
+	job, ok := s.GetProcessingJob(ctx, jobID)
 	if !ok || job == nil {
 		return nil, false
 	}
-	plan, _ := s.GetJobExecutionPlan(jobID)
-	mutationCount, err := s.q().CountJobMutationLogs(context.Background(), jobID)
+	plan, _ := s.GetJobExecutionPlan(ctx, jobID)
+	mutationCount, err := s.q().CountJobMutationLogs(ctx, jobID)
 	if err != nil {
 		return nil, false
 	}
@@ -249,8 +249,8 @@ func (s *Store) EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool) {
 	return result, true
 }
 
-func (s *Store) ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool) {
-	rows, err := s.q().ListJobApprovalRequests(context.Background(), jobID)
+func (s *Store) ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, bool) {
+	rows, err := s.q().ListJobApprovalRequests(ctx, jobID)
 	if err != nil {
 		return nil, false
 	}
@@ -266,16 +266,16 @@ func (s *Store) ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequ
 	return requests, true
 }
 
-func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool) {
-	job, ok := s.GetProcessingJob(jobID)
+func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool) {
+	job, ok := s.GetProcessingJob(ctx, jobID)
 	if !ok || job == nil {
 		return nil, false
 	}
-	plan, ok := s.GetJobExecutionPlan(jobID)
+	plan, ok := s.GetJobExecutionPlan(ctx, jobID)
 	if !ok || plan == nil {
 		return nil, false
 	}
-	if requests, ok := s.ListJobApprovalRequests(jobID); ok {
+	if requests, ok := s.ListJobApprovalRequests(ctx, jobID); ok {
 		for _, req := range requests {
 			if req.Status == "pending" {
 				return req, true
@@ -304,14 +304,14 @@ func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.J
 		RequestedAt:         now.UTC().Format(time.RFC3339),
 	}
 
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, false
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	if err := qtx.CreateJobApprovalRequest(context.Background(), sqlcgen.CreateJobApprovalRequestParams{
+	if err := qtx.CreateJobApprovalRequest(ctx, sqlcgen.CreateJobApprovalRequestParams{
 		ApprovalID:              approval.ApprovalID,
 		JobID:                   approval.JobID,
 		PlanID:                  approval.PlanID,
@@ -326,14 +326,14 @@ func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.J
 	}); err != nil {
 		return nil, false
 	}
-	if _, err := qtx.UpdateJobExecutionPlanStatus(context.Background(), sqlcgen.UpdateJobExecutionPlanStatusParams{
+	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    approval.PlanID,
 		Status:    "pending_approval",
 		UpdatedAt: now,
 	}); err != nil {
 		return nil, false
 	}
-	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           approval.JobID,
 		ExecutionPlanID: approval.PlanID,
 		PlanStatus:      "pending_approval",
@@ -349,23 +349,23 @@ func (s *Store) RequestJobApproval(jobID, requestedBy, reason string) (*domain.J
 	return approval, true
 }
 
-func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool {
+func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) bool {
 	now := nowTime()
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	planID, err := qtx.GetJobApprovalPlanID(context.Background(), sqlcgen.GetJobApprovalPlanIDParams{
+	planID, err := qtx.GetJobApprovalPlanID(ctx, sqlcgen.GetJobApprovalPlanIDParams{
 		JobID:      jobID,
 		ApprovalID: approvalID,
 	})
 	if err != nil {
 		return false
 	}
-	if _, err := qtx.ApproveJobApproval(context.Background(), sqlcgen.ApproveJobApprovalParams{
+	if _, err := qtx.ApproveJobApproval(ctx, sqlcgen.ApproveJobApprovalParams{
 		JobID:      jobID,
 		ApprovalID: approvalID,
 		ReviewedBy: firstNonEmptyNonSQL(reviewedBy, "reviewer"),
@@ -373,14 +373,14 @@ func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool {
 	}); err != nil {
 		return false
 	}
-	if _, err := qtx.UpdateJobExecutionPlanStatus(context.Background(), sqlcgen.UpdateJobExecutionPlanStatusParams{
+	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    planID,
 		Status:    "approved",
 		UpdatedAt: now,
 	}); err != nil {
 		return false
 	}
-	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: planID,
 		PlanStatus:      "approved",
@@ -392,23 +392,23 @@ func (s *Store) ApproveJobApproval(jobID, approvalID, reviewedBy string) bool {
 	return tx.Commit() == nil
 }
 
-func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool {
+func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) bool {
 	now := nowTime()
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	planID, err := qtx.GetJobApprovalPlanID(context.Background(), sqlcgen.GetJobApprovalPlanIDParams{
+	planID, err := qtx.GetJobApprovalPlanID(ctx, sqlcgen.GetJobApprovalPlanIDParams{
 		JobID:      jobID,
 		ApprovalID: approvalID,
 	})
 	if err != nil {
 		return false
 	}
-	if _, err := qtx.RejectJobApproval(context.Background(), sqlcgen.RejectJobApprovalParams{
+	if _, err := qtx.RejectJobApproval(ctx, sqlcgen.RejectJobApprovalParams{
 		JobID:      jobID,
 		ApprovalID: approvalID,
 		ReviewedBy: firstNonEmptyNonSQL(reviewedBy, "reviewer"),
@@ -417,14 +417,14 @@ func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) 
 	}); err != nil {
 		return false
 	}
-	if _, err := qtx.UpdateJobExecutionPlanStatus(context.Background(), sqlcgen.UpdateJobExecutionPlanStatusParams{
+	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    planID,
 		Status:    "rejected",
 		UpdatedAt: now,
 	}); err != nil {
 		return false
 	}
-	if err := qtx.UpdateProcessingJobPlanState(context.Background(), sqlcgen.UpdateProcessingJobPlanStateParams{
+	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: planID,
 		PlanStatus:      "rejected",
@@ -436,10 +436,10 @@ func (s *Store) RejectJobApproval(jobID, approvalID, reviewedBy, reason string) 
 	return tx.Commit() == nil
 }
 
-func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
 	createdAt := nowTime()
 	jobID := newID()
-	doc, ok := s.GetDocument(docID)
+	doc, ok := s.GetDocument(ctx, docID)
 	if !ok {
 		return nil
 	}
@@ -482,14 +482,14 @@ func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.Jo
 		return nil
 	}
 
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	if err := qtx.CreateProcessingJob(context.Background(), sqlcgen.CreateProcessingJobParams{
+	if err := qtx.CreateProcessingJob(ctx, sqlcgen.CreateProcessingJobParams{
 		JobID:            jobID,
 		DocumentID:       docID,
 		WorkspaceID:      workspaceID,
@@ -509,7 +509,7 @@ func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.Jo
 	}); err != nil {
 		return nil
 	}
-	if err := qtx.CreateJobCapability(context.Background(), sqlcgen.CreateJobCapabilityParams{
+	if err := qtx.CreateJobCapability(ctx, sqlcgen.CreateJobCapabilityParams{
 		CapabilityID:           capability.CapabilityID,
 		JobID:                  capability.JobID,
 		WorkspaceID:            capability.WorkspaceID,
@@ -524,7 +524,7 @@ func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.Jo
 	}); err != nil {
 		return nil
 	}
-	if err := qtx.UpsertJobExecutionPlan(context.Background(), sqlcgen.UpsertJobExecutionPlanParams{
+	if err := qtx.UpsertJobExecutionPlan(ctx, sqlcgen.UpsertJobExecutionPlanParams{
 		PlanID:    planID,
 		JobID:     jobID,
 		Status:    "approved",
@@ -557,24 +557,24 @@ func (s *Store) CreateProcessingJob(docID, workspaceID string, jobType treev1.Jo
 	}
 }
 
-func (s *Store) MarkProcessingJobRunning(jobID string) bool {
-	rowsAffected, err := s.q().MarkProcessingJobRunning(context.Background(), sqlcgen.MarkProcessingJobRunningParams{
+func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) bool {
+	rowsAffected, err := s.q().MarkProcessingJobRunning(ctx, sqlcgen.MarkProcessingJobRunningParams{
 		JobID:     jobID,
 		UpdatedAt: nowTime(),
 	})
 	return err == nil && rowsAffected > 0
 }
 
-func (s *Store) UpdateProcessingJobStage(jobID, stage string) bool {
-	return s.q().UpdateProcessingJobStage(context.Background(), sqlcgen.UpdateProcessingJobStageParams{
+func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) bool {
+	return s.q().UpdateProcessingJobStage(ctx, sqlcgen.UpdateProcessingJobStageParams{
 		JobID:        jobID,
 		CurrentStage: stage,
 		UpdatedAt:    nowTime(),
 	}) == nil
 }
 
-func (s *Store) FailProcessingJob(jobID, errorMessage string) bool {
-	rowsAffected, err := s.q().FailProcessingJob(context.Background(), sqlcgen.FailProcessingJobParams{
+func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) bool {
+	rowsAffected, err := s.q().FailProcessingJob(ctx, sqlcgen.FailProcessingJobParams{
 		JobID:        jobID,
 		ErrorMessage: errorMessage,
 		UpdatedAt:    nowTime(),
@@ -582,16 +582,16 @@ func (s *Store) FailProcessingJob(jobID, errorMessage string) bool {
 	return err == nil && rowsAffected > 0
 }
 
-func (s *Store) CompleteProcessingJob(jobID string) bool {
-	rowsAffected, err := s.q().CompleteProcessingJob(context.Background(), sqlcgen.CompleteProcessingJobParams{
+func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) bool {
+	rowsAffected, err := s.q().CompleteProcessingJob(ctx, sqlcgen.CompleteProcessingJobParams{
 		JobID:     jobID,
 		UpdatedAt: nowTime(),
 	})
 	return err == nil && rowsAffected > 0
 }
 
-func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
-	rows, err := s.q().ListAllJobs(context.Background())
+func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, bool) {
+	rows, err := s.q().ListAllJobs(ctx)
 	if err != nil {
 		return nil, false
 	}
@@ -602,15 +602,15 @@ func (s *Store) ListAllJobs() ([]*domain.DocumentProcessingJob, bool) {
 	return res, true
 }
 
-func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error {
-	tx, err := s.db.BeginTx(context.Background(), nil)
+func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	if err := qtx.DeleteDocumentChunks(context.Background(), documentID); err != nil {
+	if err := qtx.DeleteDocumentChunks(ctx, documentID); err != nil {
 		return err
 	}
 	for i, chunk := range chunks {
@@ -628,7 +628,7 @@ func (s *Store) SaveDocumentChunks(documentID string, chunks []*domain.DocumentC
 		if len(chunk.Embedding) > 0 {
 			params.Embedding = pgvector.NewVector(chunk.Embedding)
 		}
-		if err := qtx.CreateDocumentChunk(context.Background(), params); err != nil {
+		if err := qtx.CreateDocumentChunk(ctx, params); err != nil {
 			return err
 		}
 	}
@@ -773,20 +773,20 @@ func toDocument(row sqlcgen.Document) *domain.Document {
 	}
 }
 
-func (s *Store) UpsertJobEvaluation(jobID string, result *domain.JobEvaluationResult) bool {
+func (s *Store) UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) bool {
 	if result == nil {
 		return false
 	}
 
 	now := nowTime()
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
-	if err := qtx.UpdateProcessingJobEvaluationState(context.Background(), sqlcgen.UpdateProcessingJobEvaluationStateParams{
+	if err := qtx.UpdateProcessingJobEvaluationState(ctx, sqlcgen.UpdateProcessingJobEvaluationStateParams{
 		JobID:            jobID,
 		EvaluationStatus: result.Status,
 		UpdatedAt:        now,
@@ -802,7 +802,7 @@ func (s *Store) UpsertJobEvaluation(jobID string, result *domain.JobEvaluationRe
 }
 
 func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error {
-	job, ok := s.GetProcessingJob(jobID)
+	job, ok := s.GetProcessingJob(ctx, jobID)
 	if !ok {
 		return fmt.Errorf("job not found: %s", jobID)
 	}
@@ -902,8 +902,8 @@ func toProcessingJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessi
 	}
 }
 
-func (s *Store) ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool) {
-	rows, err := s.q().ListJobMutationLogs(context.Background(), jobID)
+func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, bool) {
+	rows, err := s.q().ListJobMutationLogs(ctx, jobID)
 	if err != nil {
 		return nil, false
 	}

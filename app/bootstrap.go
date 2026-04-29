@@ -15,51 +15,51 @@ import (
 )
 
 type Store interface {
-	GetOrCreateAccount(userID string) (*domain.Account, error)
-	GetAccount(accountID string) (*domain.Account, error)
-	ListWorkspacesByUser(userID string) []*domain.Workspace
-	GetWorkspace(id string) (*domain.Workspace, bool)
-	IsWorkspaceAccessible(wsID, userID string) bool
-	CreateWorkspace(accountID, name string) *domain.Workspace
-	ListDocuments(wsID string) []*domain.Document
-	GetDocument(id string) (*domain.Document, bool)
-	GetDocumentChunks(documentID string) ([]*domain.DocumentChunk, bool)
-	GetJobPlanningSignals(documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool)
-	CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
-	GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool)
-	GetProcessingJob(jobID string) (*domain.DocumentProcessingJob, bool)
-	GetJobCapability(jobID string) (*domain.JobCapability, bool)
-	GetJobExecutionPlan(jobID string) (*domain.JobExecutionPlan, bool)
-	UpsertJobExecutionPlan(jobID string, plan *domain.JobExecutionPlan) bool
-	UpsertJobEvaluation(jobID string, result *domain.JobEvaluationResult) bool
-	EvaluateJob(jobID string) (*domain.JobEvaluationResult, bool)
-	ListJobApprovalRequests(jobID string) ([]*domain.JobApprovalRequest, bool)
-	ListJobMutationLogs(jobID string) ([]*domain.JobMutationLog, bool)
-	ListAllJobs() ([]*domain.DocumentProcessingJob, bool)
-	RequestJobApproval(jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
-	ApproveJobApproval(jobID, approvalID, reviewedBy string) bool
-	RejectJobApproval(jobID, approvalID, reviewedBy, reason string) bool
-	CreateProcessingJob(docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob
-	MarkProcessingJobRunning(jobID string) bool
-	UpdateProcessingJobStage(jobID, stage string) bool
-	FailProcessingJob(jobID, errorMessage string) bool
-	CompleteProcessingJob(jobID string) bool
-	SaveDocumentChunks(documentID string, chunks []*domain.DocumentChunk) error
+	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
+	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
+	ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace
+	GetWorkspace(ctx context.Context, id string) (*domain.Workspace, bool)
+	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool
+	CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace
+	ListDocuments(ctx context.Context, wsID string) []*domain.Document
+	GetDocument(ctx context.Context, id string) (*domain.Document, bool)
+	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, bool)
+	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool)
+	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
+	GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, bool)
+	GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, bool)
+	GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, bool)
+	GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, bool)
+	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) bool
+	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) bool
+	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, bool)
+	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, bool)
+	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, bool)
+	ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, bool)
+	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
+	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) bool
+	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) bool
+	CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob
+	MarkProcessingJobRunning(ctx context.Context, jobID string) bool
+	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) bool
+	FailProcessingJob(ctx context.Context, jobID, errorMessage string) bool
+	CompleteProcessingJob(ctx context.Context, jobID string) bool
+	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 	SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error)
 	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
-	GetOrCreateTree(wsID string) (*domain.Tree, error)
-	GetTreeByWorkspace(wsID string) ([]*domain.Item, bool)
-	GetWorkspaceRootItemID(wsID string) (string, bool)
-	FindPaths(wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool)
-	GetSubtree(rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
-	GetItem(itemID string) (*domain.Item, bool)
-	CreateItem(workspaceID, label, description, parentID, createdBy string) *domain.Item
-	CreateStructuredItemWithCapability(capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item
-	UpsertItemSource(itemID, documentID, chunkID, sourceText string, confidence float64) error
-	UpdateItemSummaryHTMLWithCapability(capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool
-	ApproveAlias(wsID, canonicalItemID, aliasItemID string) bool
-	RejectAlias(wsID, canonicalItemID, aliasItemID string) bool
+	GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error)
+	GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, bool)
+	GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, bool)
+	FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool)
+	GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
+	GetItem(ctx context.Context, itemID string) (*domain.Item, bool)
+	CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item
+	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item
+	UpsertItemSource(ctx context.Context, itemID, documentID, chunkID, sourceText string, confidence float64) error
+	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool
+	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool
+	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool
 }
 
 func PublicUploadURLGenerator(base string) repository.UploadURLGenerator {

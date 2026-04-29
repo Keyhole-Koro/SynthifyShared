@@ -23,9 +23,7 @@ var defaultRegisteredPlan = struct {
 	MaxUploadsPerWeek: 100,
 }
 
-func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
-	ctx := context.Background()
-
+func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	// Return the existing account if present.
 	existing, err := s.q().GetAccountByUser(ctx, userID)
 	if err == nil {
@@ -80,8 +78,8 @@ func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
 	}), nil
 }
 
-func (s *Store) GetAccount(accountID string) (*domain.Account, error) {
-	row, err := s.q().GetAccount(context.Background(), accountID)
+func (s *Store) GetAccount(ctx context.Context, accountID string) (*domain.Account, error) {
+	row, err := s.q().GetAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -98,14 +96,14 @@ func (s *Store) GetAccount(accountID string) (*domain.Account, error) {
 	}), nil
 }
 
-func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
-	rows, err := s.q().ListWorkspacesByUser(context.Background(), userID)
+func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace {
+	rows, err := s.q().ListWorkspacesByUser(ctx, userID)
 	if err != nil {
 		return nil
 	}
 	var workspaces []*domain.Workspace
 	for _, row := range rows {
-		rootItemID, _ := s.GetWorkspaceRootItemIDByWorkspace(row.WorkspaceID)
+		rootItemID, _ := s.GetWorkspaceRootItemIDByWorkspace(ctx, row.WorkspaceID)
 		workspaces = append(workspaces, &domain.Workspace{
 			WorkspaceID: row.WorkspaceID,
 			AccountID:   row.AccountID,
@@ -117,8 +115,8 @@ func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
 	return workspaces
 }
 
-func (s *Store) GetWorkspace(id string) (*domain.Workspace, bool) {
-	row, err := s.q().GetWorkspace(context.Background(), id)
+func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, bool) {
+	row, err := s.q().GetWorkspace(ctx, id)
 	if err != nil {
 		return nil, false
 	}
@@ -128,23 +126,22 @@ func (s *Store) GetWorkspace(id string) (*domain.Workspace, bool) {
 		Name:        row.Name,
 		CreatedAt:   row.CreatedAt,
 	})
-	ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(id)
+	ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(ctx, id)
 	return ws, true
 }
 
-func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool {
-	accessible, err := s.q().IsWorkspaceAccessible(context.Background(), sqlcgen.IsWorkspaceAccessibleParams{
+func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool {
+	accessible, err := s.q().IsWorkspaceAccessible(ctx, sqlcgen.IsWorkspaceAccessibleParams{
 		WorkspaceID: wsID,
 		UserID:      userID,
 	})
 	return err == nil && accessible
 }
 
-func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
+func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace {
 	createdAt := nowTime()
 	wsID := newID()
 	rootItemID := newID()
-	ctx := context.Background()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil
@@ -185,8 +182,8 @@ func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	}
 }
 
-func (s *Store) GetWorkspaceRootItemIDByWorkspace(workspaceID string) (string, bool) {
-	row, err := s.q().GetTreeRoot(context.Background(), workspaceID)
+func (s *Store) GetWorkspaceRootItemIDByWorkspace(ctx context.Context, workspaceID string) (string, bool) {
+	row, err := s.q().GetTreeRoot(ctx, workspaceID)
 	if err != nil {
 		return "", false
 	}
