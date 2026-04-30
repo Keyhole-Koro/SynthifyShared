@@ -2,11 +2,81 @@ package domain
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
 )
+
+var (
+	ErrApprovalRequired = errors.New("job execution plan requires approval")
+	ErrPlanRejected     = errors.New("job execution plan was rejected")
+)
+
+type ExecutePlanRequest struct {
+	JobID       string `json:"job_id"`
+	JobType     string `json:"job_type"`
+	DocumentID  string `json:"document_id"`
+	WorkspaceID string `json:"workspace_id"`
+	TreeID      string `json:"tree_id"`
+	FileURI     string `json:"file_uri"`
+	Filename    string `json:"filename"`
+	MimeType    string `json:"mime_type"`
+}
+
+func (req ExecutePlanRequest) Validate() error {
+	switch {
+	case req.JobID == "":
+		return fmt.Errorf("job_id is required")
+	case req.DocumentID == "":
+		return fmt.Errorf("document_id is required")
+	case req.WorkspaceID == "":
+		return fmt.Errorf("workspace_id is required")
+	default:
+		return nil
+	}
+}
+
+type SynthesizedItem struct {
+	LocalID        string   `json:"local_id"`
+	Label          string   `json:"label"`
+	Level          int      `json:"level"`
+	Description    string   `json:"description"`
+	SummaryHTML    string   `json:"summary_html"`
+	ParentLocalID  string   `json:"parent_local_id"`
+	ChildLocalIDs  []string `json:"child_local_ids"`
+	SourceChunkIDs []string `json:"source_chunk_ids"`
+}
+
+type SourceFile struct {
+	Filename string `json:"filename"`
+	URI      string `json:"uri"`
+	MimeType string `json:"mime_type"`
+	Content  []byte `json:"content,omitempty"`
+}
+
+type Chunk struct {
+	ChunkIndex int    `json:"chunk_index"`
+	Heading    string `json:"heading"`
+	Text       string `json:"text"`
+}
+
+type DocumentBrief struct {
+	Topic        string   `json:"topic"`
+	Level01Hints []string `json:"level01_hints"`
+	ClaimSummary string   `json:"claim_summary"`
+	Entities     []string `json:"entities"`
+	Outline      []string `json:"outline"`
+}
+
+type SectionBrief struct {
+	Heading         string   `json:"heading"`
+	Topic           string   `json:"topic"`
+	ItemCandidates  []string `json:"item_candidates"`
+	ConnectionHints string   `json:"connection_hints"`
+}
 
 type Account struct {
 	AccountID          string `json:"account_id"`

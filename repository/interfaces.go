@@ -32,11 +32,15 @@ type DocumentRepository interface {
 	GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, bool)
 	GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, bool)
 	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) bool
+	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) bool
 	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, bool)
 	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, bool)
 	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
 	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) bool
 	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) bool
+	SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error)
+	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
+	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 	CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(ctx context.Context, jobID string) bool
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) bool
