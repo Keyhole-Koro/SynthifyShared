@@ -47,6 +47,7 @@ type SynthesizedItem struct {
 	Level          int      `json:"level"`
 	Description    string   `json:"description"`
 	SummaryHTML    string   `json:"summary_html"`
+	OverrideCSS    string   `json:"override_css,omitempty"`
 	ParentLocalID  string   `json:"parent_local_id"`
 	ChildLocalIDs  []string `json:"child_local_ids"`
 	SourceChunkIDs []string `json:"source_chunk_ids"`
@@ -152,6 +153,7 @@ type Item struct {
 	Level             int                        `json:"level,omitempty"`
 	Description       string                     `json:"description"`
 	SummaryHTML       string                     `json:"summary_html,omitempty"`
+	OverrideCSS       string                     `json:"override_css,omitempty"`
 	CreatedBy         string                     `json:"created_by,omitempty"`
 	GovernanceState   treev1.ItemGovernanceState `json:"governance_state,omitempty"`
 	LastMutationJobID string                     `json:"last_mutation_job_id,omitempty"`

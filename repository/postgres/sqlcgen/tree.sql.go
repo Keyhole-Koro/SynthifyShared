@@ -30,8 +30,8 @@ func (q *Queries) CountJobMutationsByTarget(ctx context.Context, arg CountJobMut
 }
 
 const createItem = `-- name: CreateItem :exec
-INSERT INTO tree_items (id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+INSERT INTO tree_items (id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 `
 
 type CreateItemParams struct {
@@ -42,6 +42,7 @@ type CreateItemParams struct {
 	Level       int32
 	Description string
 	SummaryHtml string
+	OverrideCss string
 	CreatedBy   string
 	CreatedAt   time.Time
 }
@@ -55,6 +56,7 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) error {
 		arg.Level,
 		arg.Description,
 		arg.SummaryHtml,
+		arg.OverrideCss,
 		arg.CreatedBy,
 		arg.CreatedAt,
 	)
@@ -63,10 +65,10 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) error {
 
 const createStructuredItem = `-- name: CreateStructuredItem :exec
 INSERT INTO tree_items (
-  id, workspace_id, parent_id, label, level, description, summary_html,
+  id, workspace_id, parent_id, label, level, description, summary_html, override_css,
   created_by, governance_state, last_mutation_job_id, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
 `
 
 type CreateStructuredItemParams struct {
@@ -77,6 +79,7 @@ type CreateStructuredItemParams struct {
 	Level             int32
 	Description       string
 	SummaryHtml       string
+	OverrideCss       string
 	CreatedBy         string
 	GovernanceState   string
 	LastMutationJobID string
@@ -92,6 +95,7 @@ func (q *Queries) CreateStructuredItem(ctx context.Context, arg CreateStructured
 		arg.Level,
 		arg.Description,
 		arg.SummaryHtml,
+		arg.OverrideCss,
 		arg.CreatedBy,
 		arg.GovernanceState,
 		arg.LastMutationJobID,
@@ -101,7 +105,7 @@ func (q *Queries) CreateStructuredItem(ctx context.Context, arg CreateStructured
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by,
        COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE id = $1
@@ -115,6 +119,7 @@ type GetItemRow struct {
 	Level           int32
 	Description     string
 	SummaryHtml     string
+	OverrideCss     string
 	CreatedBy       string
 	GovernanceState string
 	CreatedAt       time.Time
@@ -131,6 +136,7 @@ func (q *Queries) GetItem(ctx context.Context, id string) (GetItemRow, error) {
 		&i.Level,
 		&i.Description,
 		&i.SummaryHtml,
+		&i.OverrideCss,
 		&i.CreatedBy,
 		&i.GovernanceState,
 		&i.CreatedAt,
@@ -158,7 +164,7 @@ func (q *Queries) GetItemSummaryUpdateContext(ctx context.Context, id string) (G
 }
 
 const getTreeRoot = `-- name: GetTreeRoot :one
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by, created_at
 FROM tree_items
 WHERE workspace_id = $1 AND parent_id IS NULL
 LIMIT 1
@@ -172,6 +178,7 @@ type GetTreeRootRow struct {
 	Level       int32
 	Description string
 	SummaryHtml string
+	OverrideCss string
 	CreatedBy   string
 	CreatedAt   time.Time
 }
@@ -187,6 +194,7 @@ func (q *Queries) GetTreeRoot(ctx context.Context, workspaceID string) (GetTreeR
 		&i.Level,
 		&i.Description,
 		&i.SummaryHtml,
+		&i.OverrideCss,
 		&i.CreatedBy,
 		&i.CreatedAt,
 	)
@@ -237,7 +245,7 @@ func (q *Queries) InsertJobMutationLog(ctx context.Context, arg InsertJobMutatio
 }
 
 const listChildItems = `-- name: ListChildItems :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by,
   COALESCE(governance_state, 'system_generated') AS governance_state, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items
@@ -252,6 +260,7 @@ type ListChildItemsRow struct {
 	Level           int32
 	Description     string
 	SummaryHtml     string
+	OverrideCss     string
 	CreatedBy       string
 	GovernanceState string
 	CreatedAt       time.Time
@@ -275,6 +284,7 @@ func (q *Queries) ListChildItems(ctx context.Context, parentID sql.NullString) (
 			&i.Level,
 			&i.Description,
 			&i.SummaryHtml,
+			&i.OverrideCss,
 			&i.CreatedBy,
 			&i.GovernanceState,
 			&i.CreatedAt,
@@ -337,7 +347,7 @@ func (q *Queries) ListItemSources(ctx context.Context, itemID string) ([]ListIte
 }
 
 const listItemsByWorkspace = `-- name: ListItemsByWorkspace :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by,
        COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE workspace_id = $1
@@ -352,6 +362,7 @@ type ListItemsByWorkspaceRow struct {
 	Level           int32
 	Description     string
 	SummaryHtml     string
+	OverrideCss     string
 	CreatedBy       string
 	GovernanceState string
 	CreatedAt       time.Time
@@ -374,6 +385,7 @@ func (q *Queries) ListItemsByWorkspace(ctx context.Context, workspaceID string) 
 			&i.Level,
 			&i.Description,
 			&i.SummaryHtml,
+			&i.OverrideCss,
 			&i.CreatedBy,
 			&i.GovernanceState,
 			&i.CreatedAt,

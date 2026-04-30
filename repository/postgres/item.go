@@ -69,7 +69,7 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 	return item
 }
 
-func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
+func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
 	if !s.canMutateTree(capability, treev1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
 		return nil
 	}
@@ -86,6 +86,7 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 		Level:             level,
 		Description:       description,
 		SummaryHTML:       summaryHTML,
+		OverrideCSS:       overrideCSS,
 		CreatedBy:         createdBy,
 		GovernanceState:   treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED,
 		LastMutationJobID: jobID,
@@ -110,6 +111,7 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 		Level:             int32(item.Level),
 		Description:       item.Description,
 		SummaryHtml:       item.SummaryHTML,
+		OverrideCss:       item.OverrideCSS,
 		CreatedBy:         item.CreatedBy,
 		GovernanceState:   "system_generated",
 		LastMutationJobID: item.LastMutationJobID,
@@ -285,6 +287,7 @@ func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 		Level:           int(row.Level),
 		Description:     row.Description,
 		SummaryHTML:     row.SummaryHtml,
+		OverrideCSS:     row.OverrideCss,
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
@@ -301,6 +304,7 @@ func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 		Level:           int(row.Level),
 		Description:     row.Description,
 		SummaryHTML:     row.SummaryHtml,
+		OverrideCSS:     row.OverrideCss,
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
@@ -317,6 +321,7 @@ func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 		Level:           int(row.Level),
 		Description:     row.Description,
 		SummaryHTML:     row.SummaryHtml,
+		OverrideCSS:     row.OverrideCss,
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),

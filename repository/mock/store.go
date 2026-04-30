@@ -519,7 +519,7 @@ func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description,
 	return n
 }
 
-func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
+func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
 	return s.CreateItem(ctx, workspaceID, label, description, parentID, createdBy)
 }
 
