@@ -72,3 +72,50 @@ func ToProtoExecutionPlan(plan *domain.JobExecutionPlan) *treev1.JobExecutionPla
 		UpdatedAt: plan.UpdatedAt,
 	}
 }
+
+func ToProtoDocument(doc *domain.Document) *treev1.Document {
+	if doc == nil {
+		return nil
+	}
+	return &treev1.Document{
+		DocumentId:  doc.DocumentID,
+		WorkspaceId: doc.WorkspaceID,
+		UploadedBy:  doc.UploadedBy,
+		Filename:    doc.Filename,
+		MimeType:    doc.MimeType,
+		FileSize:    doc.FileSize,
+		Status:      treev1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_UPLOADED,
+		CreatedAt:   doc.CreatedAt,
+		UpdatedAt:   doc.CreatedAt,
+	}
+}
+
+func ToProtoWorkspace(ws *domain.Workspace) *treev1.Workspace {
+	if ws == nil {
+		return nil
+	}
+	return &treev1.Workspace{
+		WorkspaceId: ws.WorkspaceID,
+		Name:        ws.Name,
+		OwnerId:     ws.AccountID,
+		CreatedAt:   ws.CreatedAt,
+	}
+}
+
+func ToProtoItem(item *domain.Item) *treev1.Item {
+	if item == nil {
+		return nil
+	}
+	return &treev1.Item{
+		Id:              item.ItemID,
+		Label:           item.Label,
+		Level:           int32(item.Level),
+		Description:     item.Description,
+		SummaryHtml:     item.SummaryHTML,
+		CreatedAt:       item.CreatedAt,
+		ParentId:        item.ParentID,
+		ChildIds:        item.ChildIDs,
+		Scope:           item.Scope,
+		GovernanceState: item.GovernanceState,
+	}
+}

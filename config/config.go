@@ -1,6 +1,10 @@
 package config
 
-import "os"
+import (
+	"os"
+
+	"github.com/Keyhole-Koro/SynthifyShared/util"
+)
 
 type API struct {
 	Port                     string
@@ -64,7 +68,7 @@ func LoadStore() Store {
 
 func LoadLLM() LLM {
 	return LLM{
-		GeminiAPIKey: firstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
+		GeminiAPIKey: util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
 		GeminiModel:  get("GEMINI_MODEL", "gemini-3-flash-preview"),
 	}
 }
@@ -86,13 +90,4 @@ func get(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+	"github.com/Keyhole-Koro/SynthifyShared/util"
 )
 
 var (
@@ -339,7 +340,7 @@ func (p *JobExecutionPlan) HighestRiskTier() string {
 	}
 	maxRisk := "tier_1"
 	for _, step := range payload.Steps {
-		risk := normalizeRiskTier(step.RiskTier)
+		risk := util.NormalizeRiskTier(step.RiskTier)
 		if riskTierRank(risk) > riskTierRank(maxRisk) {
 			maxRisk = risk
 		}
@@ -351,23 +352,8 @@ func (p *JobExecutionPlan) RequiresApproval() bool {
 	return riskTierRank(p.HighestRiskTier()) >= riskTierRank("tier_2")
 }
 
-func normalizeRiskTier(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "tier_3", "approval_required":
-		return "tier_3"
-	case "tier_2", "review_required":
-		return "tier_2"
-	default:
-		return "tier_1"
-	}
-}
-
-func NormalizeRiskTierForPlanning(value string) string {
-	return normalizeRiskTier(value)
-}
-
 func riskTierRank(value string) int {
-	switch normalizeRiskTier(value) {
+	switch util.NormalizeRiskTier(value) {
 	case "tier_3":
 		return 3
 	case "tier_2":
