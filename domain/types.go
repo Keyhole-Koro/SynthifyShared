@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	ErrNotFound         = errors.New("not found")
 	ErrApprovalRequired = errors.New("job execution plan requires approval")
 	ErrPlanRejected     = errors.New("job execution plan was rejected")
 )

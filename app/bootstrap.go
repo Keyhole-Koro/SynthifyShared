@@ -9,10 +9,25 @@ import (
 	"github.com/Keyhole-Koro/SynthifyShared/config"
 	"github.com/Keyhole-Koro/SynthifyShared/domain"
 	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+	"github.com/Keyhole-Koro/SynthifyShared/jobstatus"
 	"github.com/Keyhole-Koro/SynthifyShared/repository"
 	"github.com/Keyhole-Koro/SynthifyShared/repository/mock"
 	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres"
 )
+
+type AppContext struct {
+	Store    Store
+	Notifier jobstatus.Notifier
+}
+
+func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string) *AppContext {
+	store := InitStore(ctx, PublicUploadURLGenerator(gcsURLBase))
+	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID)
+	return &AppContext{
+		Store:    store,
+		Notifier: notifier,
+	}
+}
 
 type Store interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)

@@ -1,9 +1,14 @@
 package handlerutil
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
+
+	connect "connectrpc.com/connect"
+	"github.com/Keyhole-Koro/SynthifyShared/domain"
 )
 
 func WriteJSON(w http.ResponseWriter, v any) {
@@ -24,4 +29,27 @@ func WriteError(w http.ResponseWriter, code int, msg string) {
 
 func DecodeBody(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
+}
+
+func ToConnectError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) {
+		return connectErr
+	}
+
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		return connect.NewError(connect.CodeNotFound, err)
+	case errors.Is(err, domain.ErrApprovalRequired), errors.Is(err, domain.ErrPlanRejected):
+		return connect.NewError(connect.CodeFailedPrecondition, err)
+	case errors.Is(err, context.Canceled):
+		return connect.NewError(connect.CodeCanceled, err)
+	case errors.Is(err, context.DeadlineExceeded):
+		return connect.NewError(connect.CodeDeadlineExceeded, err)
+	default:
+		return connect.NewError(connect.CodeInternal, err)
+	}
 }
