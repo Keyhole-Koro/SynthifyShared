@@ -111,18 +111,3 @@ func bearerToken(header string) string {
 	}
 	return strings.TrimSpace(header[len(prefix):])
 }
-
-func WithWorkerAuth(token string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		if token == "" {
-			return next
-		}
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("X-Worker-Token") != token {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}

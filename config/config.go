@@ -14,7 +14,6 @@ type API struct {
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
 	WorkerBaseURL            string
-	InternalWorkerToken      string
 }
 
 type Worker struct {
@@ -22,7 +21,6 @@ type Worker struct {
 	GCSUploadURLBase         string
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
-	InternalWorkerToken      string
 }
 
 type Store struct {
@@ -48,7 +46,6 @@ func LoadAPI() API {
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
-		InternalWorkerToken:      os.Getenv("INTERNAL_WORKER_TOKEN"),
 	}
 }
 
@@ -58,7 +55,6 @@ func LoadWorker() Worker {
 		GCSUploadURLBase:         get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/storage/v1/b/synthify-uploads/o"),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
-		InternalWorkerToken:      os.Getenv("INTERNAL_WORKER_TOKEN"),
 	}
 }
 
