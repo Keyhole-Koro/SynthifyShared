@@ -64,7 +64,8 @@ type Store interface {
 
 func PublicUploadURLGenerator(base string) repository.UploadURLGenerator {
 	return func(workspaceID, documentID string) string {
-		return fmt.Sprintf("%s/%s/%s", base, workspaceID, documentID)
+		// alt=media makes GCS return the file contents directly instead of a download page
+		return fmt.Sprintf("%s/%s%%2F%s?alt=media", base, workspaceID, documentID)
 	}
 }
 

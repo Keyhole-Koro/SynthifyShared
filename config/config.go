@@ -35,7 +35,7 @@ type Service struct {
 }
 
 func LoadAPI() API {
-	uploadBase := get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/synthify-uploads")
+	uploadBase := get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/storage/v1/b/synthify-uploads/o")
 	return API{
 		Port:                     get("PORT", "8080"),
 		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
@@ -51,7 +51,7 @@ func LoadAPI() API {
 func LoadWorker() Worker {
 	return Worker{
 		Port:                     get("PORT", "8080"),
-		GCSUploadURLBase:         get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/synthify-uploads"),
+		GCSUploadURLBase:         get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/storage/v1/b/synthify-uploads/o"),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		InternalWorkerToken:      os.Getenv("INTERNAL_WORKER_TOKEN"),
@@ -65,7 +65,7 @@ func LoadStore() Store {
 func LoadLLM() LLM {
 	return LLM{
 		GeminiAPIKey: firstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
-		GeminiModel:  get("GEMINI_MODEL", "gemini-3.0-flash"),
+		GeminiModel:  get("GEMINI_MODEL", "gemini-3-flash-preview"),
 	}
 }
 
