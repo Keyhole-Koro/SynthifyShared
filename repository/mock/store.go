@@ -16,6 +16,7 @@ type Store struct {
 	mu           sync.RWMutex
 	accounts     map[string]*domain.Account
 	workspaces   map[string]*domain.Workspace
+	wsOwners     map[string]string // wsID -> ownerAccountID
 	documents    map[string]*domain.Document
 	jobs         map[string]*domain.DocumentProcessingJob
 	capabilities map[string]*domain.JobCapability
@@ -30,6 +31,7 @@ func NewStore() *Store {
 	return &Store{
 		accounts:     make(map[string]*domain.Account),
 		workspaces:   make(map[string]*domain.Workspace),
+		wsOwners:     make(map[string]string),
 		documents:    make(map[string]*domain.Document),
 		jobs:         make(map[string]*domain.DocumentProcessingJob),
 		capabilities: make(map[string]*domain.JobCapability),
@@ -73,7 +75,13 @@ func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*doma
 	defer s.mu.RUnlock()
 	var res []*domain.Workspace
 	for _, w := range s.workspaces {
-		res = append(res, w)
+		owner := s.wsOwners[w.WorkspaceID]
+		if owner == "" {
+			owner = w.AccountID
+		}
+		if owner == userID {
+			res = append(res, w)
+		}
 	}
 	return res
 }
@@ -85,7 +93,20 @@ func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace,
 	return w, ok
 }
 
-func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool { return true }
+func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if wsID == "" || userID == "" {
+		return false
+	}
+	owner := s.wsOwners[wsID]
+	if owner == "" {
+		if ws, ok := s.workspaces[wsID]; ok {
+			owner = ws.AccountID
+		}
+	}
+	return owner != "" && owner == userID
+}
 
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace {
 	s.mu.Lock()
@@ -97,6 +118,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *do
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 	s.workspaces[w.WorkspaceID] = w
+	s.wsOwners[w.WorkspaceID] = accountID
 	return w
 }
 
