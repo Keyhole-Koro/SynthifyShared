@@ -44,12 +44,15 @@ func NewNotifier(ctx context.Context, projectID string) Notifier {
 	if projectID == "" {
 		return noopNotifier{}
 	}
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
+	initCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	app, err := firebase.NewApp(initCtx, &firebase.Config{ProjectID: projectID})
 	if err != nil {
 		log.Printf("jobstatus: firebase app init failed: %v", err)
 		return noopNotifier{}
 	}
-	client, err := app.Firestore(ctx)
+	client, err := app.Firestore(initCtx)
 	if err != nil {
 		log.Printf("jobstatus: firestore init failed: %v", err)
 		return noopNotifier{}
