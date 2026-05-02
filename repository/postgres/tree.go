@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 )
 
 func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {

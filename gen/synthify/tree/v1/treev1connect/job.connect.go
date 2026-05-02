@@ -8,7 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+	v1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 	http "net/http"
 	strings "strings"
 )
@@ -53,6 +53,14 @@ const (
 	// JobServiceListJobMutationLogsProcedure is the fully-qualified name of the JobService's
 	// ListJobMutationLogs RPC.
 	JobServiceListJobMutationLogsProcedure = "/synthify.tree.v1.JobService/ListJobMutationLogs"
+	// JobServiceListJobLogsProcedure is the fully-qualified name of the JobService's ListJobLogs RPC.
+	JobServiceListJobLogsProcedure = "/synthify.tree.v1.JobService/ListJobLogs"
+	// JobServiceSearchJobLogsProcedure is the fully-qualified name of the JobService's SearchJobLogs
+	// RPC.
+	JobServiceSearchJobLogsProcedure = "/synthify.tree.v1.JobService/SearchJobLogs"
+	// JobServiceListRelatedJobLogsProcedure is the fully-qualified name of the JobService's
+	// ListRelatedJobLogs RPC.
+	JobServiceListRelatedJobLogsProcedure = "/synthify.tree.v1.JobService/ListRelatedJobLogs"
 	// JobServiceListAllJobsProcedure is the fully-qualified name of the JobService's ListAllJobs RPC.
 	JobServiceListAllJobsProcedure = "/synthify.tree.v1.JobService/ListAllJobs"
 )
@@ -66,6 +74,9 @@ type JobServiceClient interface {
 	ApproveJobApproval(context.Context, *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error)
 	RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error)
 	ListJobMutationLogs(context.Context, *connect.Request[v1.ListJobMutationLogsRequest]) (*connect.Response[v1.ListJobMutationLogsResponse], error)
+	ListJobLogs(context.Context, *connect.Request[v1.ListJobLogsRequest]) (*connect.Response[v1.ListJobLogsResponse], error)
+	SearchJobLogs(context.Context, *connect.Request[v1.SearchJobLogsRequest]) (*connect.Response[v1.SearchJobLogsResponse], error)
+	ListRelatedJobLogs(context.Context, *connect.Request[v1.ListRelatedJobLogsRequest]) (*connect.Response[v1.ListRelatedJobLogsResponse], error)
 	ListAllJobs(context.Context, *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error)
 }
 
@@ -122,6 +133,24 @@ func NewJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(jobServiceMethods.ByName("ListJobMutationLogs")),
 			connect.WithClientOptions(opts...),
 		),
+		listJobLogs: connect.NewClient[v1.ListJobLogsRequest, v1.ListJobLogsResponse](
+			httpClient,
+			baseURL+JobServiceListJobLogsProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("ListJobLogs")),
+			connect.WithClientOptions(opts...),
+		),
+		searchJobLogs: connect.NewClient[v1.SearchJobLogsRequest, v1.SearchJobLogsResponse](
+			httpClient,
+			baseURL+JobServiceSearchJobLogsProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("SearchJobLogs")),
+			connect.WithClientOptions(opts...),
+		),
+		listRelatedJobLogs: connect.NewClient[v1.ListRelatedJobLogsRequest, v1.ListRelatedJobLogsResponse](
+			httpClient,
+			baseURL+JobServiceListRelatedJobLogsProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("ListRelatedJobLogs")),
+			connect.WithClientOptions(opts...),
+		),
 		listAllJobs: connect.NewClient[v1.ListAllJobsRequest, v1.ListAllJobsResponse](
 			httpClient,
 			baseURL+JobServiceListAllJobsProcedure,
@@ -140,6 +169,9 @@ type jobServiceClient struct {
 	approveJobApproval      *connect.Client[v1.ApproveJobApprovalRequest, v1.ApproveJobApprovalResponse]
 	rejectJobApproval       *connect.Client[v1.RejectJobApprovalRequest, v1.RejectJobApprovalResponse]
 	listJobMutationLogs     *connect.Client[v1.ListJobMutationLogsRequest, v1.ListJobMutationLogsResponse]
+	listJobLogs             *connect.Client[v1.ListJobLogsRequest, v1.ListJobLogsResponse]
+	searchJobLogs           *connect.Client[v1.SearchJobLogsRequest, v1.SearchJobLogsResponse]
+	listRelatedJobLogs      *connect.Client[v1.ListRelatedJobLogsRequest, v1.ListRelatedJobLogsResponse]
 	listAllJobs             *connect.Client[v1.ListAllJobsRequest, v1.ListAllJobsResponse]
 }
 
@@ -178,6 +210,21 @@ func (c *jobServiceClient) ListJobMutationLogs(ctx context.Context, req *connect
 	return c.listJobMutationLogs.CallUnary(ctx, req)
 }
 
+// ListJobLogs calls synthify.tree.v1.JobService.ListJobLogs.
+func (c *jobServiceClient) ListJobLogs(ctx context.Context, req *connect.Request[v1.ListJobLogsRequest]) (*connect.Response[v1.ListJobLogsResponse], error) {
+	return c.listJobLogs.CallUnary(ctx, req)
+}
+
+// SearchJobLogs calls synthify.tree.v1.JobService.SearchJobLogs.
+func (c *jobServiceClient) SearchJobLogs(ctx context.Context, req *connect.Request[v1.SearchJobLogsRequest]) (*connect.Response[v1.SearchJobLogsResponse], error) {
+	return c.searchJobLogs.CallUnary(ctx, req)
+}
+
+// ListRelatedJobLogs calls synthify.tree.v1.JobService.ListRelatedJobLogs.
+func (c *jobServiceClient) ListRelatedJobLogs(ctx context.Context, req *connect.Request[v1.ListRelatedJobLogsRequest]) (*connect.Response[v1.ListRelatedJobLogsResponse], error) {
+	return c.listRelatedJobLogs.CallUnary(ctx, req)
+}
+
 // ListAllJobs calls synthify.tree.v1.JobService.ListAllJobs.
 func (c *jobServiceClient) ListAllJobs(ctx context.Context, req *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error) {
 	return c.listAllJobs.CallUnary(ctx, req)
@@ -192,6 +239,9 @@ type JobServiceHandler interface {
 	ApproveJobApproval(context.Context, *connect.Request[v1.ApproveJobApprovalRequest]) (*connect.Response[v1.ApproveJobApprovalResponse], error)
 	RejectJobApproval(context.Context, *connect.Request[v1.RejectJobApprovalRequest]) (*connect.Response[v1.RejectJobApprovalResponse], error)
 	ListJobMutationLogs(context.Context, *connect.Request[v1.ListJobMutationLogsRequest]) (*connect.Response[v1.ListJobMutationLogsResponse], error)
+	ListJobLogs(context.Context, *connect.Request[v1.ListJobLogsRequest]) (*connect.Response[v1.ListJobLogsResponse], error)
+	SearchJobLogs(context.Context, *connect.Request[v1.SearchJobLogsRequest]) (*connect.Response[v1.SearchJobLogsResponse], error)
+	ListRelatedJobLogs(context.Context, *connect.Request[v1.ListRelatedJobLogsRequest]) (*connect.Response[v1.ListRelatedJobLogsResponse], error)
 	ListAllJobs(context.Context, *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error)
 }
 
@@ -244,6 +294,24 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(jobServiceMethods.ByName("ListJobMutationLogs")),
 		connect.WithHandlerOptions(opts...),
 	)
+	jobServiceListJobLogsHandler := connect.NewUnaryHandler(
+		JobServiceListJobLogsProcedure,
+		svc.ListJobLogs,
+		connect.WithSchema(jobServiceMethods.ByName("ListJobLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
+	jobServiceSearchJobLogsHandler := connect.NewUnaryHandler(
+		JobServiceSearchJobLogsProcedure,
+		svc.SearchJobLogs,
+		connect.WithSchema(jobServiceMethods.ByName("SearchJobLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
+	jobServiceListRelatedJobLogsHandler := connect.NewUnaryHandler(
+		JobServiceListRelatedJobLogsProcedure,
+		svc.ListRelatedJobLogs,
+		connect.WithSchema(jobServiceMethods.ByName("ListRelatedJobLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
 	jobServiceListAllJobsHandler := connect.NewUnaryHandler(
 		JobServiceListAllJobsProcedure,
 		svc.ListAllJobs,
@@ -266,6 +334,12 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 			jobServiceRejectJobApprovalHandler.ServeHTTP(w, r)
 		case JobServiceListJobMutationLogsProcedure:
 			jobServiceListJobMutationLogsHandler.ServeHTTP(w, r)
+		case JobServiceListJobLogsProcedure:
+			jobServiceListJobLogsHandler.ServeHTTP(w, r)
+		case JobServiceSearchJobLogsProcedure:
+			jobServiceSearchJobLogsHandler.ServeHTTP(w, r)
+		case JobServiceListRelatedJobLogsProcedure:
+			jobServiceListRelatedJobLogsHandler.ServeHTTP(w, r)
 		case JobServiceListAllJobsProcedure:
 			jobServiceListAllJobsHandler.ServeHTTP(w, r)
 		default:
@@ -303,6 +377,18 @@ func (UnimplementedJobServiceHandler) RejectJobApproval(context.Context, *connec
 
 func (UnimplementedJobServiceHandler) ListJobMutationLogs(context.Context, *connect.Request[v1.ListJobMutationLogsRequest]) (*connect.Response[v1.ListJobMutationLogsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.JobService.ListJobMutationLogs is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) ListJobLogs(context.Context, *connect.Request[v1.ListJobLogsRequest]) (*connect.Response[v1.ListJobLogsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.JobService.ListJobLogs is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) SearchJobLogs(context.Context, *connect.Request[v1.SearchJobLogsRequest]) (*connect.Response[v1.SearchJobLogsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.JobService.SearchJobLogs is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) ListRelatedJobLogs(context.Context, *connect.Request[v1.ListRelatedJobLogsRequest]) (*connect.Response[v1.ListRelatedJobLogsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.JobService.ListRelatedJobLogs is not implemented"))
 }
 
 func (UnimplementedJobServiceHandler) ListAllJobs(context.Context, *connect.Request[v1.ListAllJobsRequest]) (*connect.Response[v1.ListAllJobsResponse], error) {

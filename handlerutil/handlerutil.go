@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	connect "connectrpc.com/connect"
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
+	"github.com/synthify/backend/packages/shared/domain"
 )
 
 func WriteJSON(w http.ResponseWriter, v any) {

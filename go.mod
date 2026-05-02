@@ -1,4 +1,4 @@
-module github.com/Keyhole-Koro/SynthifyShared
+module github.com/synthify/backend/packages/shared
 
 go 1.24
 

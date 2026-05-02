@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 
-	"github.com/Keyhole-Koro/SynthifyShared/util"
+	"github.com/synthify/backend/packages/shared/util"
 )
 
 type API struct {

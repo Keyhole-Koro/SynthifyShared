@@ -5,13 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
-	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/joblog"
+	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 	pgvector "github.com/pgvector/pgvector-go"
 )
 
@@ -632,6 +634,14 @@ func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunk
 			return fmt.Errorf("create chunk[%d] %s: %w", i, chunkID, err)
 		}
 	}
+	log.Printf("chunks saved: doc=%s count=%d", documentID, len(chunks))
+	joblog.FromContext(ctx).Log(ctx, joblog.Event{
+		DocumentID: documentID,
+		Level:      joblog.INFO,
+		Event:      "chunks.saved",
+		Message:    fmt.Sprintf("chunks saved: doc=%s count=%d", documentID, len(chunks)),
+		Detail:     map[string]any{"count": len(chunks)},
+	})
 	return tx.Commit()
 }
 

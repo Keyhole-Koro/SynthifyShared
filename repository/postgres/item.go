@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
-	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 )
 
 func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, bool) {

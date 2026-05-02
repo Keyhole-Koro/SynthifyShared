@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/Keyhole-Koro/SynthifyShared/repository"
-	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/packages/shared/repository"
+	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/oklog/ulid/v2"
 )

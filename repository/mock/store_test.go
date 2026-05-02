@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 )
 
 var ctx = context.Background()

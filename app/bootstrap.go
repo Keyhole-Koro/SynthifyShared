@@ -6,13 +6,14 @@ import (
 	"log"
 	"time"
 
-	"github.com/Keyhole-Koro/SynthifyShared/config"
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
-	"github.com/Keyhole-Koro/SynthifyShared/jobstatus"
-	"github.com/Keyhole-Koro/SynthifyShared/repository"
-	"github.com/Keyhole-Koro/SynthifyShared/repository/mock"
-	"github.com/Keyhole-Koro/SynthifyShared/repository/postgres"
+	"github.com/synthify/backend/packages/shared/config"
+	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/joblog"
+	"github.com/synthify/backend/packages/shared/jobstatus"
+	"github.com/synthify/backend/packages/shared/repository"
+	"github.com/synthify/backend/packages/shared/repository/mock"
+	"github.com/synthify/backend/packages/shared/repository/postgres"
 )
 
 type AppContext struct {
@@ -51,6 +52,10 @@ type Store interface {
 	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, bool)
 	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, bool)
 	ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, bool)
+	LogJobEvent(ctx context.Context, e joblog.Event) error
+	ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, bool)
+	SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error)
+	ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string, pageToken string, limit int) ([]*domain.JobLogGroup, string, error)
 	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
 	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) bool
 	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) bool

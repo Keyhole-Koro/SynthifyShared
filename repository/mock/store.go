@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
-	"github.com/Keyhole-Koro/SynthifyShared/repository"
+	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/joblog"
+	"github.com/synthify/backend/packages/shared/repository"
 )
 
 type Store struct {
@@ -435,6 +436,184 @@ func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domai
 	}, true
 }
 
+func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, bool) {
+	logs, ok := s.ListJobMutationLogs(ctx, jobID)
+	if !ok {
+		return nil, "", false
+	}
+	out := make([]*domain.JobLog, 0, len(logs)+2)
+	now := time.Now().UTC()
+	job, _ := s.GetProcessingJob(ctx, jobID)
+	out = append(out, &domain.JobLog{
+		Timestamp:   now.Add(-11 * time.Minute).Format(time.RFC3339),
+		Level:       "INFO",
+		Event:       "job.running",
+		Message:     "Job started",
+		DetailJSON:  "{}",
+		Source:      "system",
+		SourceID:    "mock-job-running-" + jobID,
+		JobID:       jobID,
+		DocumentID:  job.DocumentID,
+		WorkspaceID: job.WorkspaceID,
+	})
+	for _, log := range logs {
+		out = append(out, mutationLogToJobLog(log, job.DocumentID))
+	}
+	out = append(out, &domain.JobLog{
+		Timestamp:   now.Format(time.RFC3339),
+		Level:       "INFO",
+		Event:       "job.completed",
+		Message:     "Job completed",
+		DetailJSON:  "{}",
+		Source:      "system",
+		SourceID:    "mock-job-completed-" + jobID,
+		JobID:       jobID,
+		DocumentID:  job.DocumentID,
+		WorkspaceID: job.WorkspaceID,
+	})
+	page, nextToken := paginateMockLogs(out, pageToken, limit)
+	return page, nextToken, true
+}
+
+func (s *Store) SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error) {
+	if filter.JobID != "" {
+		logs, _, _ := s.ListJobLogs(ctx, filter.JobID, "", 0)
+		filtered := filterMockJobLogs(logs, filter)
+		page, nextToken := paginateMockLogs(filtered, filter.PageToken, filter.Limit)
+		return page, nextToken, nil
+	}
+	jobs, _ := s.ListAllJobs(ctx)
+	var out []*domain.JobLog
+	for _, job := range jobs {
+		if filter.DocumentID != "" && job.DocumentID != filter.DocumentID {
+			continue
+		}
+		if filter.WorkspaceID != "" && job.WorkspaceID != "" && job.WorkspaceID != filter.WorkspaceID {
+			continue
+		}
+		logs, _, _ := s.ListJobLogs(ctx, job.JobID, "", 0)
+		out = append(out, filterMockJobLogs(logs, filter)...)
+	}
+	page, nextToken := paginateMockLogs(out, filter.PageToken, filter.Limit)
+	return page, nextToken, nil
+}
+
+func (s *Store) ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string, pageToken string, limit int) ([]*domain.JobLogGroup, string, error) {
+	jobs, _ := s.ListAllJobs(ctx)
+	if scope == domain.RelatedLogScopeJob {
+		for _, job := range jobs {
+			if job.JobID == jobID {
+				documentID = job.DocumentID
+				break
+			}
+		}
+	}
+	groupsByDocument := map[string]*domain.JobLogGroup{}
+	for _, job := range jobs {
+		if (scope == domain.RelatedLogScopeJob || scope == domain.RelatedLogScopeDocument) && job.DocumentID != documentID {
+			continue
+		}
+		if scope == domain.RelatedLogScopeWorkspace && workspaceID != "" && job.WorkspaceID != "" && job.WorkspaceID != workspaceID {
+			continue
+		}
+		group := groupsByDocument[job.DocumentID]
+		if group == nil {
+			group = &domain.JobLogGroup{WorkspaceID: job.WorkspaceID, DocumentID: job.DocumentID}
+			groupsByDocument[job.DocumentID] = group
+		}
+		logs, _, _ := s.ListJobLogs(ctx, job.JobID, "", 50)
+		group.Jobs = append(group.Jobs, &domain.JobLogJob{
+			JobID:     job.JobID,
+			Status:    job.Status,
+			CreatedAt: job.CreatedAt,
+			Logs:      logs,
+		})
+	}
+	var groups []*domain.JobLogGroup
+	for _, group := range groupsByDocument {
+		groups = append(groups, group)
+	}
+	return groups, "", nil
+}
+
+func mutationLogToJobLog(log *domain.JobMutationLog, documentID string) *domain.JobLog {
+	return &domain.JobLog{
+		Timestamp:   log.CreatedAt,
+		Level:       "INFO",
+		Event:       "tool.call.completed",
+		Message:     log.TargetID,
+		DetailJSON:  fmt.Sprintf(`{"tool":%q,"target_type":%q,"mutation_type":%q,"risk_tier":%q,"input":%s,"output":%s,"provenance":%s}`, log.TargetID, log.TargetType, log.MutationType, log.RiskTier, emptyJSON(log.BeforeJSON), emptyJSON(log.AfterJSON), emptyJSON(log.ProvenanceJSON)),
+		Source:      "tool",
+		SourceID:    log.MutationID,
+		JobID:       log.JobID,
+		DocumentID:  documentID,
+		WorkspaceID: log.WorkspaceID,
+	}
+}
+
+func emptyJSON(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "{}"
+	}
+	return v
+}
+
+func filterMockJobLogs(logs []*domain.JobLog, filter domain.JobLogSearchFilter) []*domain.JobLog {
+	query := strings.ToLower(filter.Query)
+	var out []*domain.JobLog
+	for _, log := range logs {
+		if query != "" && !strings.Contains(strings.ToLower(log.Event+" "+log.Message+" "+log.DetailJSON), query) {
+			continue
+		}
+		if len(filter.Levels) > 0 && !containsString(filter.Levels, log.Level) {
+			continue
+		}
+		if len(filter.Events) > 0 && !containsString(filter.Events, log.Event) {
+			continue
+		}
+		if filter.FromTimestamp != "" && log.Timestamp < filter.FromTimestamp {
+			continue
+		}
+		if filter.ToTimestamp != "" && log.Timestamp > filter.ToTimestamp {
+			continue
+		}
+		out = append(out, log)
+	}
+	return out
+}
+
+func paginateMockLogs(logs []*domain.JobLog, pageToken string, limit int) ([]*domain.JobLog, string) {
+	if limit <= 0 || len(logs) <= limit {
+		return logs, ""
+	}
+
+	end := len(logs)
+	if pageToken != "" {
+		if _, err := fmt.Sscanf(pageToken, "%d", &end); err != nil || end < 0 || end > len(logs) {
+			end = len(logs)
+		}
+	}
+	start := end - limit
+	if start < 0 {
+		start = 0
+	}
+
+	nextToken := ""
+	if start > 0 {
+		nextToken = fmt.Sprintf("%d", start)
+	}
+	return logs[start:end], nextToken
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 // TreeRepository
 func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {
 	return &domain.Tree{TreeID: wsID, WorkspaceID: wsID, Name: "default"}, nil
@@ -575,6 +754,10 @@ func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasIt
 }
 func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
 	return true
+}
+
+func (s *Store) LogJobEvent(ctx context.Context, e joblog.Event) error {
+	return nil
 }
 
 var _ repository.AccountRepository = (*Store)(nil)

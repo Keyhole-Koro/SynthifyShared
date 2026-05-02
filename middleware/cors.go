@@ -43,7 +43,15 @@ func Logger(next http.Handler) http.Handler {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rw, r)
-		log.Printf("%s %s %d %s", r.Method, r.URL.Path, rw.status, time.Since(start))
+		elapsed := time.Since(start)
+		if rw.status >= 500 {
+			log.Printf("ERROR %s %s %d %s", r.Method, r.URL.Path, rw.status, elapsed)
+		} else {
+			log.Printf("%s %s %d %s", r.Method, r.URL.Path, rw.status, elapsed)
+		}
+		if elapsed > 5*time.Second {
+			log.Printf("SLOW %s %s %d %s", r.Method, r.URL.Path, rw.status, elapsed)
+		}
 	})
 }
 

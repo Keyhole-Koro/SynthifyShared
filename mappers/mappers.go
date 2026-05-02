@@ -1,8 +1,8 @@
 package mappers
 
 import (
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 )
 
 func ToProtoJob(job *domain.DocumentProcessingJob) *treev1.Job {
@@ -12,6 +12,7 @@ func ToProtoJob(job *domain.DocumentProcessingJob) *treev1.Job {
 	return &treev1.Job{
 		JobId:        job.JobID,
 		DocumentId:   job.DocumentID,
+		WorkspaceId:  job.WorkspaceID,
 		Type:         job.JobType,
 		Status:       job.Status,
 		CreatedAt:    job.CreatedAt,
@@ -99,6 +100,55 @@ func ToProtoWorkspace(ws *domain.Workspace) *treev1.Workspace {
 		Name:        ws.Name,
 		OwnerId:     ws.AccountID,
 		CreatedAt:   ws.CreatedAt,
+	}
+}
+
+func ToProtoJobLog(log *domain.JobLog) *treev1.JobLog {
+	if log == nil {
+		return nil
+	}
+	return &treev1.JobLog{
+		Timestamp:   log.Timestamp,
+		Level:       log.Level,
+		Event:       log.Event,
+		Message:     log.Message,
+		DetailJson:  log.DetailJSON,
+		Source:      log.Source,
+		SourceId:    log.SourceID,
+		JobId:       log.JobID,
+		DocumentId:  log.DocumentID,
+		WorkspaceId: log.WorkspaceID,
+	}
+}
+
+func ToProtoJobLogJob(job *domain.JobLogJob) *treev1.JobLogJob {
+	if job == nil {
+		return nil
+	}
+	logs := make([]*treev1.JobLog, 0, len(job.Logs))
+	for _, l := range job.Logs {
+		logs = append(logs, ToProtoJobLog(l))
+	}
+	return &treev1.JobLogJob{
+		JobId:     job.JobID,
+		Status:    job.Status,
+		CreatedAt: job.CreatedAt,
+		Logs:      logs,
+	}
+}
+
+func ToProtoJobLogGroup(group *domain.JobLogGroup) *treev1.JobLogGroup {
+	if group == nil {
+		return nil
+	}
+	jobs := make([]*treev1.JobLogJob, 0, len(group.Jobs))
+	for _, j := range group.Jobs {
+		jobs = append(jobs, ToProtoJobLogJob(j))
+	}
+	return &treev1.JobLogGroup{
+		WorkspaceId: group.WorkspaceID,
+		DocumentId:  group.DocumentID,
+		Jobs:        jobs,
 	}
 }
 

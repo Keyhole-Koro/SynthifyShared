@@ -8,7 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+	v1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 	http "net/http"
 	strings "strings"
 )

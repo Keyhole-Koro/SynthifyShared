@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 
-	"github.com/Keyhole-Koro/SynthifyShared/domain"
-	treev1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 )
 
 type UploadURLGenerator func(workspaceID, documentID string) string
@@ -49,6 +49,9 @@ type DocumentRepository interface {
 	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
 	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, bool)
 	ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, bool)
+	ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, bool)
+	SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error)
+	ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string, pageToken string, limit int) ([]*domain.JobLogGroup, string, error)
 }
 
 type TreeRepository interface {
