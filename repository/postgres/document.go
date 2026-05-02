@@ -605,13 +605,13 @@ func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJo
 func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback()
 
 	qtx := s.q().WithTx(tx)
 	if err := qtx.DeleteDocumentChunks(ctx, documentID); err != nil {
-		return err
+		return fmt.Errorf("delete chunks for %s: %w", documentID, err)
 	}
 	for i, chunk := range chunks {
 		chunkID := chunk.ChunkID
@@ -629,7 +629,7 @@ func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunk
 			params.Embedding = pgvector.NewVector(chunk.Embedding)
 		}
 		if err := qtx.CreateDocumentChunk(ctx, params); err != nil {
-			return err
+			return fmt.Errorf("create chunk[%d] %s: %w", i, chunkID, err)
 		}
 	}
 	return tx.Commit()
