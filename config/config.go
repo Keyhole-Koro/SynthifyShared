@@ -77,10 +77,6 @@ func (c LLM) Enabled() bool {
 	return c.GeminiAPIKey != ""
 }
 
-func FirebaseAuthEmulatorEnabled() bool {
-	return os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != ""
-}
-
 func get(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
