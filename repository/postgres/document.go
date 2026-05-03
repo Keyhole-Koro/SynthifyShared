@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	pgvector "github.com/pgvector/pgvector-go"
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 	"github.com/synthify/backend/packages/shared/joblog"
 	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
-	pgvector "github.com/pgvector/pgvector-go"
 )
 
 func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Document {
@@ -117,7 +117,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	if err != nil {
 		return nil, ""
 	}
-	return doc, s.uploadURLGenerator(wsID, doc.DocumentID)
+	return doc, s.uploadURLBuilder(wsID, doc.DocumentID)
 }
 
 func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, bool) {

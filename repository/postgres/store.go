@@ -5,19 +5,19 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/synthify/backend/packages/shared/repository"
-	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/oklog/ulid/v2"
+	"github.com/synthify/backend/packages/shared/repository"
+	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 )
 
 type Store struct {
-	db                 *sql.DB
-	queries            *sqlcgen.Queries
-	uploadURLGenerator repository.UploadURLGenerator
+	db               *sql.DB
+	queries          *sqlcgen.Queries
+	uploadURLBuilder repository.DocumentUploadURLBuilder
 }
 
-func NewStore(ctx context.Context, dsn string, uploadURLGenerator repository.UploadURLGenerator) (*Store, error) {
+func NewStore(ctx context.Context, dsn string, uploadURLBuilder repository.DocumentUploadURLBuilder) (*Store, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func NewStore(ctx context.Context, dsn string, uploadURLGenerator repository.Upl
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db, queries: sqlcgen.New(db), uploadURLGenerator: uploadURLGenerator}, nil
+	return &Store{db: db, queries: sqlcgen.New(db), uploadURLBuilder: uploadURLBuilder}, nil
 }
 
 func (s *Store) Close() error {

@@ -142,11 +142,7 @@ func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, b
 	if d, ok := s.documents[id]; ok {
 		return d, true
 	}
-	return &domain.Document{
-		DocumentID:  id,
-		WorkspaceID: "mock-ws",
-		Filename:    "mock-document.pdf",
-	}, true
+	return nil, false
 }
 
 func (s *Store) GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, bool) {
@@ -616,6 +612,18 @@ func containsString(values []string, target string) bool {
 
 // TreeRepository
 func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.items[wsID]; !ok {
+		s.items[wsID] = map[string]*domain.Item{
+			"nd_root": {
+				ItemID:      "nd_root",
+				WorkspaceID: wsID,
+				ParentID:    "",
+				Label:       "root",
+			},
+		}
+	}
 	return &domain.Tree{TreeID: wsID, WorkspaceID: wsID, Name: "default"}, nil
 }
 

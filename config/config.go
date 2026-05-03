@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/synthify/backend/packages/shared/storage"
 	"github.com/synthify/backend/packages/shared/util"
 )
 
@@ -37,12 +39,12 @@ type Service struct {
 }
 
 func LoadAPI() API {
-	uploadBase := get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/storage/v1/b/synthify-uploads/o")
+	uploadBase := mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443"))
 	return API{
 		Port:                     get("PORT", "8080"),
 		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
 		GCSUploadURLBase:         uploadBase,
-		InternalGCSUploadBase:    get("INTERNAL_GCS_UPLOAD_URL_BASE", uploadBase),
+		InternalGCSUploadBase:    mustBaseURL("INTERNAL_GCS_UPLOAD_URL_BASE", get("INTERNAL_GCS_UPLOAD_URL_BASE", uploadBase)),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
@@ -52,7 +54,7 @@ func LoadAPI() API {
 func LoadWorker() Worker {
 	return Worker{
 		Port:                     get("PORT", "8080"),
-		GCSUploadURLBase:         get("GCS_UPLOAD_URL_BASE", "http://localhost:4443/storage/v1/b/synthify-uploads/o"),
+		GCSUploadURLBase:         mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443")),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 	}
@@ -82,4 +84,11 @@ func get(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func mustBaseURL(name, value string) string {
+	if err := storage.ValidateBaseURL(value); err != nil {
+		panic(fmt.Sprintf("%s is invalid: %v", name, err))
+	}
+	return value
 }

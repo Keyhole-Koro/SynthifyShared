@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/repository/mock"
 	"github.com/synthify/backend/packages/shared/repository/postgres"
+	"github.com/synthify/backend/packages/shared/storage"
 )
 
 type AppContext struct {
@@ -22,7 +22,7 @@ type AppContext struct {
 }
 
 func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string) *AppContext {
-	store := InitStore(ctx, PublicUploadURLGenerator(gcsURLBase))
+	store := InitStore(ctx, NewDocumentUploadURLBuilder(gcsURLBase))
 	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID)
 	return &AppContext{
 		Store:    store,
@@ -82,19 +82,23 @@ type Store interface {
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool
 }
 
-func PublicUploadURLGenerator(base string) repository.UploadURLGenerator {
+func NewDocumentUploadURLBuilder(base string) repository.DocumentUploadURLBuilder {
 	return func(workspaceID, documentID string) string {
-		// Use the /upload/ path for GCS media uploads with a path-based object name.
-		// This supports PUT for idempotent and large media uploads.
-		return fmt.Sprintf("%s/upload/storage/v1/b/synthify-uploads/o/%s%%2F%s?uploadType=media", base, workspaceID, documentID)
+		return storage.BuildDocumentUploadURL(base, workspaceID, documentID)
 	}
 }
 
-func InitStore(ctx context.Context, urlGenerator repository.UploadURLGenerator) Store {
+func NewDocumentSourceURLBuilder(base string) repository.DocumentSourceURLBuilder {
+	return func(workspaceID, documentID string) string {
+		return storage.BuildDocumentSourceURL(base, workspaceID, documentID)
+	}
+}
+
+func InitStore(ctx context.Context, uploadURLBuilder repository.DocumentUploadURLBuilder) Store {
 	if dsn := config.LoadStore().DatabaseURL; dsn != "" {
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
-			store, err := postgres.NewStore(ctx, dsn, urlGenerator)
+			store, err := postgres.NewStore(ctx, dsn, uploadURLBuilder)
 			if err == nil {
 				log.Printf("using postgres store")
 				return store

@@ -7,7 +7,8 @@ import (
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 )
 
-type UploadURLGenerator func(workspaceID, documentID string) string
+type DocumentUploadURLBuilder func(workspaceID, objectName string) string
+type DocumentSourceURLBuilder func(workspaceID, documentID string) string
 
 type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
