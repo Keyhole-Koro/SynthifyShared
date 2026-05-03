@@ -84,8 +84,9 @@ type Store interface {
 
 func PublicUploadURLGenerator(base string) repository.UploadURLGenerator {
 	return func(workspaceID, documentID string) string {
-		// alt=media makes GCS return the file contents directly instead of a download page
-		return fmt.Sprintf("%s/%s%%2F%s?alt=media", base, workspaceID, documentID)
+		// Use the /upload/ path for GCS media uploads with a path-based object name.
+		// This supports PUT for idempotent and large media uploads.
+		return fmt.Sprintf("%s/upload/storage/v1/b/synthify-uploads/o/%s%%2F%s?uploadType=media", base, workspaceID, documentID)
 	}
 }
 
