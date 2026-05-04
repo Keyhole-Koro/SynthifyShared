@@ -152,6 +152,16 @@ func ToProtoJobLogGroup(group *domain.JobLogGroup) *treev1.JobLogGroup {
 	}
 }
 
+func ToProtoSubtreeItem(item *domain.SubtreeItem) *treev1.SubtreeItem {
+	if item == nil {
+		return nil
+	}
+	return &treev1.SubtreeItem{
+		Item:        ToProtoItem(&item.Item),
+		HasChildren: item.HasChildren,
+	}
+}
+
 func ToProtoItem(item *domain.Item) *treev1.Item {
 	if item == nil {
 		return nil

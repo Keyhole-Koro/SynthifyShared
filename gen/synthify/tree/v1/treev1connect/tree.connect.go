@@ -8,7 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	v1 "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1"
 	http "net/http"
 	strings "strings"
 )
@@ -37,12 +37,15 @@ const (
 	TreeServiceGetTreeProcedure = "/synthify.tree.v1.TreeService/GetTree"
 	// TreeServiceFindPathsProcedure is the fully-qualified name of the TreeService's FindPaths RPC.
 	TreeServiceFindPathsProcedure = "/synthify.tree.v1.TreeService/FindPaths"
+	// TreeServiceGetSubtreeProcedure is the fully-qualified name of the TreeService's GetSubtree RPC.
+	TreeServiceGetSubtreeProcedure = "/synthify.tree.v1.TreeService/GetSubtree"
 )
 
 // TreeServiceClient is a client for the synthify.tree.v1.TreeService service.
 type TreeServiceClient interface {
 	GetTree(context.Context, *connect.Request[v1.GetTreeRequest]) (*connect.Response[v1.GetTreeResponse], error)
 	FindPaths(context.Context, *connect.Request[v1.FindPathsRequest]) (*connect.Response[v1.FindPathsResponse], error)
+	GetSubtree(context.Context, *connect.Request[v1.GetSubtreeRequest]) (*connect.Response[v1.GetSubtreeResponse], error)
 }
 
 // NewTreeServiceClient constructs a client for the synthify.tree.v1.TreeService service. By
@@ -68,13 +71,20 @@ func NewTreeServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(treeServiceMethods.ByName("FindPaths")),
 			connect.WithClientOptions(opts...),
 		),
+		getSubtree: connect.NewClient[v1.GetSubtreeRequest, v1.GetSubtreeResponse](
+			httpClient,
+			baseURL+TreeServiceGetSubtreeProcedure,
+			connect.WithSchema(treeServiceMethods.ByName("GetSubtree")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // treeServiceClient implements TreeServiceClient.
 type treeServiceClient struct {
-	getTree   *connect.Client[v1.GetTreeRequest, v1.GetTreeResponse]
-	findPaths *connect.Client[v1.FindPathsRequest, v1.FindPathsResponse]
+	getTree    *connect.Client[v1.GetTreeRequest, v1.GetTreeResponse]
+	findPaths  *connect.Client[v1.FindPathsRequest, v1.FindPathsResponse]
+	getSubtree *connect.Client[v1.GetSubtreeRequest, v1.GetSubtreeResponse]
 }
 
 // GetTree calls synthify.tree.v1.TreeService.GetTree.
@@ -87,10 +97,16 @@ func (c *treeServiceClient) FindPaths(ctx context.Context, req *connect.Request[
 	return c.findPaths.CallUnary(ctx, req)
 }
 
+// GetSubtree calls synthify.tree.v1.TreeService.GetSubtree.
+func (c *treeServiceClient) GetSubtree(ctx context.Context, req *connect.Request[v1.GetSubtreeRequest]) (*connect.Response[v1.GetSubtreeResponse], error) {
+	return c.getSubtree.CallUnary(ctx, req)
+}
+
 // TreeServiceHandler is an implementation of the synthify.tree.v1.TreeService service.
 type TreeServiceHandler interface {
 	GetTree(context.Context, *connect.Request[v1.GetTreeRequest]) (*connect.Response[v1.GetTreeResponse], error)
 	FindPaths(context.Context, *connect.Request[v1.FindPathsRequest]) (*connect.Response[v1.FindPathsResponse], error)
+	GetSubtree(context.Context, *connect.Request[v1.GetSubtreeRequest]) (*connect.Response[v1.GetSubtreeResponse], error)
 }
 
 // NewTreeServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -112,12 +128,20 @@ func NewTreeServiceHandler(svc TreeServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(treeServiceMethods.ByName("FindPaths")),
 		connect.WithHandlerOptions(opts...),
 	)
+	treeServiceGetSubtreeHandler := connect.NewUnaryHandler(
+		TreeServiceGetSubtreeProcedure,
+		svc.GetSubtree,
+		connect.WithSchema(treeServiceMethods.ByName("GetSubtree")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.tree.v1.TreeService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TreeServiceGetTreeProcedure:
 			treeServiceGetTreeHandler.ServeHTTP(w, r)
 		case TreeServiceFindPathsProcedure:
 			treeServiceFindPathsHandler.ServeHTTP(w, r)
+		case TreeServiceGetSubtreeProcedure:
+			treeServiceGetSubtreeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -133,4 +157,8 @@ func (UnimplementedTreeServiceHandler) GetTree(context.Context, *connect.Request
 
 func (UnimplementedTreeServiceHandler) FindPaths(context.Context, *connect.Request[v1.FindPathsRequest]) (*connect.Response[v1.FindPathsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.TreeService.FindPaths is not implemented"))
+}
+
+func (UnimplementedTreeServiceHandler) GetSubtree(context.Context, *connect.Request[v1.GetSubtreeRequest]) (*connect.Response[v1.GetSubtreeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.TreeService.GetSubtree is not implemented"))
 }
