@@ -43,10 +43,10 @@ func (req ExecutePlanRequest) Validate() error {
 
 type SynthesizedItem struct {
 	LocalID        string   `json:"local_id"`
-	Label          string   `json:"label"`
+	Title          string   `json:"title"`
 	Level          int      `json:"level"`
 	Description    string   `json:"description"`
-	SummaryHTML    string   `json:"summary_html"`
+	Content        string   `json:"content"`
 	OverrideCSS    string   `json:"override_css,omitempty"`
 	ParentLocalID  string   `json:"parent_local_id"`
 	ChildLocalIDs  []string `json:"child_local_ids"`
@@ -149,10 +149,10 @@ type Tree struct {
 type Item struct {
 	ItemID            string                     `json:"id"`
 	WorkspaceID       string                     `json:"workspace_id"`
-	Label             string                     `json:"label"`
+	Title             string                     `json:"title"`
 	Level             int                        `json:"level,omitempty"`
 	Description       string                     `json:"description"`
-	SummaryHTML       string                     `json:"summary_html,omitempty"`
+	Content           string                     `json:"content,omitempty"`
 	OverrideCSS       string                     `json:"override_css,omitempty"`
 	CreatedBy         string                     `json:"created_by,omitempty"`
 	GovernanceState   treev1.ItemGovernanceState `json:"governance_state,omitempty"`
@@ -179,9 +179,9 @@ type ItemEvidence struct {
 type TreeItem struct {
 	ID          string                     `json:"id"`
 	Scope       treev1.TreeProjectionScope `json:"scope"`
-	Label       string                     `json:"label"`
+	Title       string                     `json:"title"`
 	Description string                     `json:"description"`
-	SummaryHTML string                     `json:"summary_html,omitempty"`
+	Content     string                     `json:"content,omitempty"`
 }
 
 type DocumentChunk struct {

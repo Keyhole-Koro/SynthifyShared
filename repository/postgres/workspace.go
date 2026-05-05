@@ -161,10 +161,10 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *do
 		ID:          rootItemID,
 		WorkspaceID: wsID,
 		ParentID:    sql.NullString{},
-		Label:       name,
+		Title:       name,
 		Level:       0,
 		Description: "Workspace root",
-		SummaryHtml: "",
+		Content:     "",
 		CreatedBy:   "system",
 		CreatedAt:   createdAt,
 	}); err != nil {

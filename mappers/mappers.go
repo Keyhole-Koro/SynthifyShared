@@ -168,10 +168,10 @@ func ToProtoItem(item *domain.Item) *treev1.Item {
 	}
 	return &treev1.Item{
 		Id:              item.ItemID,
-		Label:           item.Label,
+		Title:           item.Title,
 		Level:           int32(item.Level),
 		Description:     item.Description,
-		SummaryHtml:     item.SummaryHTML,
+		Content:         item.Content,
 		CreatedAt:       item.CreatedAt,
 		ParentId:        item.ParentID,
 		ChildIds:        item.ChildIDs,

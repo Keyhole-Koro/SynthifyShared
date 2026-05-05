@@ -620,7 +620,7 @@ func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree,
 				ItemID:      "nd_root",
 				WorkspaceID: wsID,
 				ParentID:    "",
-				Label:       "root",
+				Title:       "root",
 			},
 		}
 	}
@@ -719,7 +719,7 @@ func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description,
 		ItemID:      "item-" + label,
 		WorkspaceID: workspaceID,
 		ParentID:    parentID,
-		Label:       label,
+		Title:       label,
 		Description: description,
 		CreatedBy:   createdBy,
 		CreatedAt:   time.Now().Format(time.RFC3339),
@@ -750,7 +750,7 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capabil
 	defer s.mu.Unlock()
 	for _, wsItems := range s.items {
 		if n, ok := wsItems[itemID]; ok {
-			n.SummaryHTML = summaryHTML
+			n.Content = summaryHTML
 			return true
 		}
 	}
