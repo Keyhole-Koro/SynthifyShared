@@ -56,6 +56,7 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	for _, r := range rows {
 		items = append(items, toItemFromItemRow(r))
 	}
+	s.populateChildIDs(ctx, items)
 	return items, true
 }
 
@@ -121,5 +122,28 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 			HasChildren: r.HasChildren,
 		})
 	}
+
+	plainItems := make([]*domain.Item, 0, len(items))
+	for _, item := range items {
+		plainItems = append(plainItems, &item.Item)
+	}
+	s.populateChildIDs(ctx, plainItems)
 	return items, nil
+}
+
+func (s *Store) populateChildIDs(ctx context.Context, items []*domain.Item) {
+	for _, item := range items {
+		if item == nil || item.ItemID == "" {
+			continue
+		}
+		rows, err := s.q().ListChildItems(ctx, sql.NullString{String: item.ItemID, Valid: true})
+		if err != nil {
+			continue
+		}
+		childIDs := make([]string, 0, len(rows))
+		for _, row := range rows {
+			childIDs = append(childIDs, row.ID)
+		}
+		item.ChildIDs = childIDs
+	}
 }

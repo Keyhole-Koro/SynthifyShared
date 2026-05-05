@@ -10,6 +10,7 @@ import (
 
 type API struct {
 	Port                     string
+	Env                      string
 	CORSAllowedOrigins       string
 	GCSUploadURLBase         string
 	InternalGCSUploadBase    string
@@ -42,7 +43,8 @@ func LoadAPI() API {
 	uploadBase := mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443"))
 	return API{
 		Port:                     get("PORT", "8080"),
-		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
+		Env:                      get("ENV", "production"),
+		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000"),
 		GCSUploadURLBase:         uploadBase,
 		InternalGCSUploadBase:    mustBaseURL("INTERNAL_GCS_UPLOAD_URL_BASE", get("INTERNAL_GCS_UPLOAD_URL_BASE", uploadBase)),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),

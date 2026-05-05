@@ -14,6 +14,7 @@ import (
 type contextKey string
 
 const authUserContextKey contextKey = "auth_user"
+const anonymousReadAllowedContextKey contextKey = "anonymous_read_allowed"
 
 type AuthUser struct {
 	ID    string
@@ -25,15 +26,23 @@ func CurrentUser(ctx context.Context) (AuthUser, bool) {
 	return user, ok
 }
 
-func WithAuth(projectID string, next http.Handler) http.Handler {
+func AnonymousReadAllowed(ctx context.Context) bool {
+	allowed, _ := ctx.Value(anonymousReadAllowedContextKey).(bool)
+	return allowed
+}
+
+func WithAuth(projectID string, enableAnonymous bool, next http.Handler) http.Handler {
 	client, err := newFirebaseAuthClient(projectID)
 	if err != nil {
 		panic(err)
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/health" {
-			next.ServeHTTP(w, r)
+		// allowAnonymous is primarily used by tools like log-viewer to access job/log data without per-workspace membership.
+		// TODO: Re-evaluate security implications and consider a more robust service-to-service auth for these tools.
+		if enableAnonymous && isAnonymousPathAllowed(r.URL.Path) {
+			ctx := context.WithValue(r.Context(), anonymousReadAllowedContextKey, true)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 
@@ -60,6 +69,19 @@ func WithAuth(projectID string, next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), authUserContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func isAnonymousPathAllowed(path string) bool {
+	switch path {
+	case "/health",
+		"/synthify.tree.v1.JobService/ListAllJobs",
+		"/synthify.tree.v1.JobService/ListJobLogs",
+		"/synthify.tree.v1.JobService/SearchJobLogs",
+		"/synthify.tree.v1.JobService/ListRelatedJobLogs":
+		return true
+	default:
+		return false
+	}
 }
 
 func newFirebaseAuthClient(projectID string) (*firebaseauth.Client, error) {
