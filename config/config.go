@@ -17,6 +17,7 @@ type API struct {
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
 	WorkerBaseURL            string
+	GCSFuseMountPath         string
 }
 
 type Worker struct {
@@ -24,6 +25,7 @@ type Worker struct {
 	GCSUploadURLBase         string
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
+	GCSFuseMountPath         string
 }
 
 type Store struct {
@@ -50,6 +52,7 @@ func LoadAPI() API {
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
+		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
 	}
 }
 
@@ -59,6 +62,7 @@ func LoadWorker() Worker {
 		GCSUploadURLBase:         mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443")),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
+		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
 	}
 }
 

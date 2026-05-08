@@ -54,10 +54,12 @@ type SynthesizedItem struct {
 }
 
 type SourceFile struct {
-	Filename string `json:"filename"`
-	URI      string `json:"uri"`
-	MimeType string `json:"mime_type"`
-	Content  []byte `json:"content,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	DocumentID  string `json:"document_id,omitempty"`
+	Filename    string `json:"filename"`
+	URI         string `json:"uri"`
+	MimeType    string `json:"mime_type"`
+	Content     []byte `json:"content,omitempty"`
 }
 
 type Chunk struct {
