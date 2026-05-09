@@ -15,6 +15,15 @@ var (
 	ErrNotFound         = errors.New("not found")
 	ErrApprovalRequired = errors.New("job execution plan requires approval")
 	ErrPlanRejected     = errors.New("job execution plan was rejected")
+
+	// Severity markers
+	ErrCritical = errors.New("critical system error") // Triggers CRITICAL alert
+	ErrJobError = errors.New("job level error")      // Triggers ERROR notification
+
+	// Checkpoint exceptions
+	ErrCheckpointNotFound = errors.New("checkpoint not found")
+	ErrCheckpointInvalid  = errors.New("checkpoint version or format is invalid")
+	ErrCheckpointMismatch = errors.New("checkpoint inputs do not match current request")
 )
 
 type ExecutePlanRequest struct {
