@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -16,13 +17,13 @@ func TestCreateItem_DBError_ReturnsNil(t *testing.T) {
 	store := &Store{db: db}
 
 	// No expectations set → Begin or any query returns an error.
-	item := store.CreateItem("tree_1", "New Item", "Description", "", "user_1")
+	item := store.CreateItem(context.Background(), "tree_1", "New Item", "Description", "", "user_1")
 	if item != nil {
 		t.Fatal("expected nil on DB error, got item")
 	}
 }
 
-func TestGetItem_DBError_ReturnsFalse(t *testing.T) {
+func TestGetItem_DBError_ReturnsError(t *testing.T) {
 	db, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -31,8 +32,8 @@ func TestGetItem_DBError_ReturnsFalse(t *testing.T) {
 
 	store := &Store{db: db}
 
-	_, ok := store.GetItem("nonexistent_item")
-	if ok {
-		t.Fatal("expected false on DB error, got true")
+	_, err = store.GetItem(context.Background(), "nonexistent_item")
+	if err == nil {
+		t.Fatal("expected error on DB error, got nil")
 	}
 }

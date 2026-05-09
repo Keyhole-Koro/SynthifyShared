@@ -540,6 +540,57 @@ func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error {
 	return nil
 }
 
+// CheckpointRepository implementation
+func (s *Store) UpsertStageRunning(ctx context.Context, jobID, stage string) error {
+	return s.q().UpsertJobStageCheckpoint(ctx, sqlcgen.UpsertJobStageCheckpointParams{
+		JobID:     jobID,
+		Stage:     stage,
+		Status:    "running",
+		GcsRef:    "",
+		UpdatedAt: nowTime(),
+	})
+}
+
+func (s *Store) MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef string) error {
+	return s.q().UpsertJobStageCheckpoint(ctx, sqlcgen.UpsertJobStageCheckpointParams{
+		JobID:     jobID,
+		Stage:     stage,
+		Status:    "succeeded",
+		GcsRef:    gcsRef,
+		UpdatedAt: nowTime(),
+	})
+}
+
+func (s *Store) MarkStageFailed(ctx context.Context, jobID, stage, errorMessage string) error {
+	// We could store the error message in the envelope if needed,
+	// for the DB index we just mark it failed.
+	return s.q().UpsertJobStageCheckpoint(ctx, sqlcgen.UpsertJobStageCheckpointParams{
+		JobID:     jobID,
+		Stage:     stage,
+		Status:    "failed",
+		GcsRef:    "",
+		UpdatedAt: nowTime(),
+	})
+}
+
+func (s *Store) ListStageCheckpoints(ctx context.Context, jobID string) ([]domain.JobStageCheckpoint, error) {
+	rows, err := s.q().ListJobStageCheckpoints(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	res := make([]domain.JobStageCheckpoint, 0, len(rows))
+	for _, row := range rows {
+		res = append(res, domain.JobStageCheckpoint{
+			JobID:     row.JobID,
+			Stage:     row.Stage,
+			Status:    row.Status,
+			GCSRef:    row.GcsRef,
+			UpdatedAt: row.UpdatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return res, nil
+}
+
 func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

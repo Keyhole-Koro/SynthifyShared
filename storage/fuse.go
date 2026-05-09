@@ -155,3 +155,61 @@ func (h *FUSEHandler) WriteCache(documentID, category, key string, data any) err
 
 	return os.Rename(tmpPath, path)
 }
+
+// ResolveCheckpointPath returns the path to a checkpoint entry within the FUSE mount.
+func (h *FUSEHandler) ResolveCheckpointPath(jobID, stage string) string {
+	if h.MountPath == "" || jobID == "" || stage == "" {
+		return ""
+	}
+	// .checkpoints/{jobID}/{stage}.json
+	return filepath.Join(h.MountPath, ".checkpoints", jobID, stage+".json")
+}
+
+// ReadCheckpoint attempts to read and decode a CheckpointEnvelope from the FUSE mount.
+// Returns true if found and decoded, or false if missing or FUSE is disabled.
+func (h *FUSEHandler) ReadCheckpoint(jobID, stage string, target *domain.CheckpointEnvelope) (bool, error) {
+	path := h.ResolveCheckpointPath(jobID, stage)
+	if path == "" {
+		return false, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer f.Close()
+
+	if err := json.NewDecoder(f).Decode(target); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// WriteCheckpoint encodes and writes a CheckpointEnvelope to the FUSE mount.
+func (h *FUSEHandler) WriteCheckpoint(jobID, stage string, envelope domain.CheckpointEnvelope) error {
+	path := h.ResolveCheckpointPath(jobID, stage)
+	if path == "" {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+
+	tmpPath := path + ".tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return err
+	}
+
+	if err := json.NewEncoder(f).Encode(envelope); err != nil {
+		f.Close()
+		return err
+	}
+	f.Close()
+
+	return os.Rename(tmpPath, path)
+}

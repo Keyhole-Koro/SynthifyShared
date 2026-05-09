@@ -154,6 +154,14 @@ type JobMutationLog struct {
 	CreatedAt      time.Time
 }
 
+type JobStageCheckpoint struct {
+	JobID     string
+	Stage     string
+	Status    string
+	GcsRef    string
+	UpdatedAt time.Time
+}
+
 type TreeItem struct {
 	ID                string
 	WorkspaceID       string

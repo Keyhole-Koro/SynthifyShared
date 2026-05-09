@@ -774,6 +774,42 @@ func (q *Queries) ListJobMutationLogs(ctx context.Context, jobID string) ([]JobM
 	return items, nil
 }
 
+const listJobStageCheckpoints = `-- name: ListJobStageCheckpoints :many
+SELECT job_id, stage, status, gcs_ref, updated_at
+FROM job_stage_checkpoints
+WHERE job_id = $1
+ORDER BY updated_at ASC
+`
+
+func (q *Queries) ListJobStageCheckpoints(ctx context.Context, jobID string) ([]JobStageCheckpoint, error) {
+	rows, err := q.db.QueryContext(ctx, listJobStageCheckpoints, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobStageCheckpoint
+	for rows.Next() {
+		var i JobStageCheckpoint
+		if err := rows.Scan(
+			&i.JobID,
+			&i.Stage,
+			&i.Status,
+			&i.GcsRef,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markProcessingJobRunning = `-- name: MarkProcessingJobRunning :execrows
 UPDATE document_processing_jobs
 SET status = 'running',
@@ -882,13 +918,13 @@ func (q *Queries) SearchWorkspaceDocumentChunksByText(ctx context.Context, arg S
 
 const searchWorkspaceDocumentChunksByVector = `-- name: SearchWorkspaceDocumentChunksByVector :many
 SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page,
-       1 - (c.embedding <=> $1::vector) AS similarity
+       1 - vector_cosine_distance(c.embedding, $1) AS similarity
 FROM document_chunks c
 INNER JOIN documents d ON d.document_id = c.document_id
 WHERE d.workspace_id = $2
   AND c.embedding IS NOT NULL
-  AND 1 - (c.embedding <=> $1::vector) >= $3::float8
-ORDER BY c.embedding <=> $1::vector
+  AND 1 - vector_cosine_distance(c.embedding, $1) >= $3::float8
+ORDER BY vector_cosine_distance(c.embedding, $1)
 LIMIT $4
 `
 
@@ -1054,6 +1090,34 @@ func (q *Queries) UpsertJobExecutionPlan(ctx context.Context, arg UpsertJobExecu
 		arg.PlanJson,
 		arg.CreatedBy,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertJobStageCheckpoint = `-- name: UpsertJobStageCheckpoint :exec
+INSERT INTO job_stage_checkpoints (job_id, stage, status, gcs_ref, updated_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (job_id, stage) DO UPDATE
+SET status = EXCLUDED.status,
+    gcs_ref = EXCLUDED.gcs_ref,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertJobStageCheckpointParams struct {
+	JobID     string
+	Stage     string
+	Status    string
+	GcsRef    string
+	UpdatedAt time.Time
+}
+
+func (q *Queries) UpsertJobStageCheckpoint(ctx context.Context, arg UpsertJobStageCheckpointParams) error {
+	_, err := q.db.ExecContext(ctx, upsertJobStageCheckpoint,
+		arg.JobID,
+		arg.Stage,
+		arg.Status,
+		arg.GcsRef,
 		arg.UpdatedAt,
 	)
 	return err

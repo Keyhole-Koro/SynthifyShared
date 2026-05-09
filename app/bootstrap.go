@@ -64,6 +64,10 @@ type Store interface {
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error
 	CompleteProcessingJob(ctx context.Context, jobID string) error
+	UpsertStageRunning(ctx context.Context, jobID, stage string) error
+	MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef string) error
+	MarkStageFailed(ctx context.Context, jobID, stage, errorMessage string) error
+	ListStageCheckpoints(ctx context.Context, jobID string) ([]domain.JobStageCheckpoint, error)
 	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 	SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error)

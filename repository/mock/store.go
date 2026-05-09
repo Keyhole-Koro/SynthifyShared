@@ -26,6 +26,7 @@ type Store struct {
 	items        map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
 	sources      map[string][]*domain.ItemSource
 	chunks       map[string][]*domain.DocumentChunk
+	checkpoints  map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
 }
 
 func NewStore() *Store {
@@ -41,6 +42,7 @@ func NewStore() *Store {
 		items:        make(map[string]map[string]*domain.Item),
 		sources:      make(map[string][]*domain.ItemSource),
 		chunks:       make(map[string][]*domain.DocumentChunk),
+		checkpoints:  make(map[string]map[string]domain.JobStageCheckpoint),
 	}
 }
 
@@ -282,6 +284,63 @@ func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) erro
 func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error { return nil }
 func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) error { return nil }
 func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error           { return nil }
+
+// CheckpointRepository
+func (s *Store) UpsertStageRunning(ctx context.Context, jobID, stage string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.checkpoints[jobID]; !ok {
+		s.checkpoints[jobID] = make(map[string]domain.JobStageCheckpoint)
+	}
+	s.checkpoints[jobID][stage] = domain.JobStageCheckpoint{
+		JobID:     jobID,
+		Stage:     stage,
+		Status:    "running",
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	return nil
+}
+
+func (s *Store) MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.checkpoints[jobID]; !ok {
+		s.checkpoints[jobID] = make(map[string]domain.JobStageCheckpoint)
+	}
+	s.checkpoints[jobID][stage] = domain.JobStageCheckpoint{
+		JobID:     jobID,
+		Stage:     stage,
+		Status:    "succeeded",
+		GCSRef:    gcsRef,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	return nil
+}
+
+func (s *Store) MarkStageFailed(ctx context.Context, jobID, stage, errorMessage string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.checkpoints[jobID]; !ok {
+		s.checkpoints[jobID] = make(map[string]domain.JobStageCheckpoint)
+	}
+	s.checkpoints[jobID][stage] = domain.JobStageCheckpoint{
+		JobID:     jobID,
+		Stage:     stage,
+		Status:    "failed",
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	return nil
+}
+
+func (s *Store) ListStageCheckpoints(ctx context.Context, jobID string) ([]domain.JobStageCheckpoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var res []domain.JobStageCheckpoint
+	for _, cp := range s.checkpoints[jobID] {
+		res = append(res, cp)
+	}
+	return res, nil
+}
 
 func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, error) {
 	s.mu.RLock()
