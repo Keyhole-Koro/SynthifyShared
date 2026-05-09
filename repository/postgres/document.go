@@ -673,15 +673,17 @@ func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, out
 	})
 }
 
-func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error) {
-	rows, err := s.q().SearchWorkspaceDocumentChunksByText(ctx, sqlcgen.SearchWorkspaceDocumentChunksByTextParams{
-		WorkspaceID: workspaceID,
-		Pattern:     query,
-		ResultLimit: int32(limit),
+func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error) {
+	rows, err := s.q().SearchWorkspaceDocumentChunksByVector(ctx, sqlcgen.SearchWorkspaceDocumentChunksByVectorParams{
+		WorkspaceID:    workspaceID,
+		QueryEmbedding: embedding,
+		MinSimilarity:  0.0, // Adjust threshold as needed
+		ResultLimit:    int32(limit),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("vector search: %w", err)
 	}
+
 	res := make([]*domain.DocumentChunk, 0, len(rows))
 	for _, r := range rows {
 		res = append(res, &domain.DocumentChunk{
@@ -693,11 +695,6 @@ func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query stri
 		})
 	}
 	return res, nil
-}
-
-func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error) {
-	// Vector search implementation depends on pgvector casting in sqlcgen, using text search for now
-	return s.SearchRelatedChunks(ctx, workspaceID, "", limit)
 }
 
 func toDocument(row sqlcgen.Document) *domain.Document {

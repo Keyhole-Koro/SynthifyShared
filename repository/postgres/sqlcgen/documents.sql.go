@@ -863,59 +863,6 @@ func (q *Queries) RejectJobApproval(ctx context.Context, arg RejectJobApprovalPa
 	return result.RowsAffected()
 }
 
-const searchWorkspaceDocumentChunksByText = `-- name: SearchWorkspaceDocumentChunksByText :many
-SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page
-FROM document_chunks c
-INNER JOIN documents d ON d.document_id = c.document_id
-WHERE d.workspace_id = $1
-  AND ($2::text = '%' OR LOWER(c.heading || ' ' || c.text) LIKE $2::text)
-ORDER BY c.chunk_id
-LIMIT $3
-`
-
-type SearchWorkspaceDocumentChunksByTextParams struct {
-	WorkspaceID string
-	Pattern     string
-	ResultLimit int32
-}
-
-type SearchWorkspaceDocumentChunksByTextRow struct {
-	ChunkID    string
-	DocumentID string
-	Heading    string
-	Text       string
-	SourcePage sql.NullInt32
-}
-
-func (q *Queries) SearchWorkspaceDocumentChunksByText(ctx context.Context, arg SearchWorkspaceDocumentChunksByTextParams) ([]SearchWorkspaceDocumentChunksByTextRow, error) {
-	rows, err := q.db.QueryContext(ctx, searchWorkspaceDocumentChunksByText, arg.WorkspaceID, arg.Pattern, arg.ResultLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SearchWorkspaceDocumentChunksByTextRow
-	for rows.Next() {
-		var i SearchWorkspaceDocumentChunksByTextRow
-		if err := rows.Scan(
-			&i.ChunkID,
-			&i.DocumentID,
-			&i.Heading,
-			&i.Text,
-			&i.SourcePage,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const searchWorkspaceDocumentChunksByVector = `-- name: SearchWorkspaceDocumentChunksByVector :many
 SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page,
        1 - vector_cosine_distance(c.embedding, $1) AS similarity

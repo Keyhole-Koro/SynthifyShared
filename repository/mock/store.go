@@ -391,33 +391,8 @@ func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, out
 	return nil
 }
 
-func (s *Store) SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if limit <= 0 {
-		limit = 8
-	}
-	query = strings.ToLower(query)
-	var out []*domain.DocumentChunk
-	for documentID, chunks := range s.chunks {
-		doc, ok := s.documents[documentID]
-		if !ok || doc.WorkspaceID != workspaceID {
-			continue
-		}
-		for _, chunk := range chunks {
-			if query == "" || strings.Contains(strings.ToLower(chunk.Heading+" "+chunk.Text), query) {
-				out = append(out, chunk)
-				if len(out) >= limit {
-					return out, nil
-				}
-			}
-		}
-	}
-	return out, nil
-}
-
 func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error) {
-	return s.SearchRelatedChunks(ctx, workspaceID, "", limit)
+	return nil, nil
 }
 
 func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error) {
