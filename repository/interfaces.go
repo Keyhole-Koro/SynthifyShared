@@ -72,3 +72,10 @@ type ItemRepository interface {
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 }
+
+type CheckpointRepository interface {
+	UpsertStageRunning(ctx context.Context, jobID, stage string) error
+	MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef string) error
+	MarkStageFailed(ctx context.Context, jobID, stage, errorMessage string) error
+	ListStageCheckpoints(ctx context.Context, jobID string) ([]domain.JobStageCheckpoint, error)
+}
