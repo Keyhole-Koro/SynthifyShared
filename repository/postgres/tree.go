@@ -47,31 +47,34 @@ func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree,
 	return s.GetOrCreateTree(ctx, wsID)
 }
 
-func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, bool) {
+func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error) {
 	rows, err := s.q().ListItemsByWorkspace(ctx, wsID)
 	if err != nil {
-		return nil, false
+		return nil, fmt.Errorf("list items by workspace: %w", err)
 	}
 	var items []*domain.Item
 	for _, r := range rows {
 		items = append(items, toItemFromItemRow(r))
 	}
 	s.populateChildIDs(ctx, items)
-	return items, true
+	return items, nil
 }
 
-func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, bool) {
+func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error) {
 	root, err := s.q().GetTreeRoot(ctx, wsID)
 	if err != nil {
-		return "", false
+		if err == sql.ErrNoRows {
+			return "", domain.ErrNotFound
+		}
+		return "", err
 	}
-	return root.ID, true
+	return root.ID, nil
 }
 
-func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool) {
-	items, ok := s.GetTreeByWorkspace(ctx, wsID)
-	if !ok || len(items) == 0 {
-		return nil, nil, false
+func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
+	items, err := s.GetTreeByWorkspace(ctx, wsID)
+	if err != nil || len(items) == 0 {
+		return nil, nil, err
 	}
 
 	itemByID := make(map[string]*domain.Item, len(items))
@@ -80,7 +83,7 @@ func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID 
 	}
 
 	if itemByID[sourceItemID] == nil || itemByID[targetItemID] == nil {
-		return nil, nil, false
+		return nil, nil, domain.ErrNotFound
 	}
 
 	var paths []domain.TreePath
@@ -90,18 +93,21 @@ func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID 
 		sourcePath = append(sourcePath, curr)
 		if curr == targetItemID {
 			paths = append(paths, domain.TreePath{ItemIDs: sourcePath, HopCount: len(sourcePath) - 1})
-			return items, paths, true
+			return items, paths, nil
 		}
 		curr = itemByID[curr].ParentID
 	}
 
-	return items, paths, len(paths) > 0
+	return items, paths, nil
 }
 
 func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
 	// ルートアイテム取得
 	rootRow, err := s.q().GetItem(ctx, rootItemID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
 

@@ -67,7 +67,7 @@ func (s *Store) GetAccount(ctx context.Context, id string) (*domain.Account, err
 	if a, ok := s.accounts[id]; ok {
 		return a, nil
 	}
-	return nil, fmt.Errorf("account not found")
+	return nil, domain.ErrNotFound
 }
 
 // WorkspaceRepository
@@ -87,11 +87,14 @@ func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*doma
 	return res
 }
 
-func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, bool) {
+func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	w, ok := s.workspaces[id]
-	return w, ok
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return w, nil
 }
 
 func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool {
@@ -136,29 +139,29 @@ func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Docume
 	return res
 }
 
-func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, bool) {
+func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if d, ok := s.documents[id]; ok {
-		return d, true
+		return d, nil
 	}
-	return nil, false
+	return nil, domain.ErrNotFound
 }
 
-func (s *Store) GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, bool) {
+func (s *Store) GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	chunks, ok := s.chunks[documentID]
 	if !ok {
-		return nil, false
+		return nil, domain.ErrNotFound
 	}
 	copied := make([]*domain.DocumentChunk, len(chunks))
 	copy(copied, chunks)
-	return copied, true
+	return copied, nil
 }
 
-func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool) {
-	return &domain.JobPlanningSignals{DocumentID: documentID, WorkspaceID: workspaceID}, true
+func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error) {
+	return &domain.JobPlanningSignals{DocumentID: documentID, WorkspaceID: workspaceID}, nil
 }
 
 func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
@@ -177,22 +180,22 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	return d, "http://mock-upload-url/" + d.DocumentID
 }
 
-func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, bool) {
+func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, j := range s.jobs {
 		if j.DocumentID == docID {
-			return j, true
+			return j, nil
 		}
 	}
-	return nil, false
+	return nil, domain.ErrNotFound
 }
 
-func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, bool) {
+func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if j, ok := s.jobs[jobID]; ok {
-		return j, true
+		return j, nil
 	}
 	return &domain.DocumentProcessingJob{
 		JobID:       jobID,
@@ -201,54 +204,63 @@ func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.Doc
 		Status:      1, // running
 		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
 		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
-	}, true
+	}, nil
 }
 
-func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, bool) {
+func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	c, ok := s.capabilities[jobID]
-	return c, ok
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return c, nil
 }
 
-func (s *Store) GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, bool) {
+func (s *Store) GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	p, ok := s.plans[jobID]
-	return p, ok
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return p, nil
 }
 
-func (s *Store) UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) bool {
+func (s *Store) UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.plans[jobID] = plan
-	return true
+	return nil
 }
 
-func (s *Store) UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) bool {
-	return true
+func (s *Store) UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) error {
+	return nil
 }
 
-func (s *Store) EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, bool) {
-	return &domain.JobEvaluationResult{JobID: jobID, Passed: true, Summary: "mock eval passed"}, true
+func (s *Store) EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error) {
+	return &domain.JobEvaluationResult{JobID: jobID, Passed: true, Summary: "mock eval passed"}, nil
 }
 
-func (s *Store) ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, bool) {
+func (s *Store) ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	a, ok := s.approvals[jobID]
-	return a, ok
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return a, nil
 }
 
-func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool) {
-	return &domain.JobApprovalRequest{JobID: jobID, Status: "pending"}, true
+func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error) {
+	return &domain.JobApprovalRequest{JobID: jobID, Status: "pending"}, nil
 }
 
-func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) bool {
-	return true
+func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error {
+	return nil
 }
-func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) bool {
-	return true
+func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error {
+	return nil
 }
 
 func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
@@ -266,11 +278,12 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 	return j
 }
 
-func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) bool        { return true }
-func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) bool { return true }
-func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) bool { return true }
-func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) bool           { return true }
-func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, bool) {
+func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error { return nil }
+func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error { return nil }
+func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) error { return nil }
+func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error           { return nil }
+
+func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -296,14 +309,14 @@ func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJo
 				Status:     treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED,
 				CreatedAt:  now.Add(-2 * time.Hour).Format(time.RFC3339),
 			},
-		}, true
+		}, nil
 	}
 
 	var res []*domain.DocumentProcessingJob
 	for _, j := range s.jobs {
 		res = append(res, j)
 	}
-	return res, true
+	return res, nil
 }
 
 func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error {
@@ -348,13 +361,13 @@ func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID str
 	return s.SearchRelatedChunks(ctx, workspaceID, "", limit)
 }
 
-func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, bool) {
+func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// Return real mock data for any requested jobId to facilitate UI testing
 	now := time.Now().UTC()
-	return []*domain.JobMutationLog{
+	logs := []*domain.JobMutationLog{
 		{
 			MutationID:   "m1",
 			JobID:        jobID,
@@ -429,14 +442,12 @@ func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domai
 			ProvenanceJSON: `{"duration_ms": 450}`,
 			CreatedAt:      now.Add(-1 * time.Minute).Format(time.RFC3339),
 		},
-	}, true
+	}
+	return logs, nil
 }
 
-func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, bool) {
-	logs, ok := s.ListJobMutationLogs(ctx, jobID)
-	if !ok {
-		return nil, "", false
-	}
+func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, error) {
+	logs, _ := s.ListJobMutationLogs(ctx, jobID)
 	out := make([]*domain.JobLog, 0, len(logs)+2)
 	now := time.Now().UTC()
 	job, _ := s.GetProcessingJob(ctx, jobID)
@@ -468,7 +479,7 @@ func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string,
 		WorkspaceID: job.WorkspaceID,
 	})
 	page, nextToken := paginateMockLogs(out, pageToken, limit)
-	return page, nextToken, true
+	return page, nextToken, nil
 }
 
 func (s *Store) SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error) {
@@ -627,41 +638,41 @@ func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree,
 	return &domain.Tree{TreeID: wsID, WorkspaceID: wsID, Name: "default"}, nil
 }
 
-func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, bool) {
+func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	wsItems, ok := s.items[wsID]
 	if !ok {
-		return nil, false
+		return nil, domain.ErrNotFound
 	}
 	var res []*domain.Item
 	for _, n := range wsItems {
 		res = append(res, n)
 	}
-	return res, true
+	return res, nil
 }
 
-func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, bool) {
+func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	wsItems, ok := s.items[wsID]
 	if !ok {
-		return "", false
+		return "", domain.ErrNotFound
 	}
 	for _, n := range wsItems {
 		if n.ParentID == "" {
-			return n.ItemID, true
+			return n.ItemID, nil
 		}
 	}
-	return "", false
+	return "", domain.ErrNotFound
 }
 
-func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool) {
-	items, ok := s.GetTreeByWorkspace(ctx, wsID)
-	if !ok {
-		return nil, nil, false
+func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
+	items, err := s.GetTreeByWorkspace(ctx, wsID)
+	if err != nil {
+		return nil, nil, err
 	}
-	return items, nil, true
+	return items, nil, nil
 }
 
 func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
@@ -698,15 +709,15 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 }
 
 // ItemRepository
-func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, bool) {
+func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, wsItems := range s.items {
 		if n, ok := wsItems[itemID]; ok {
-			return n, true
+			return n, nil
 		}
 	}
-	return nil, false
+	return nil, domain.ErrNotFound
 }
 
 func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item {
@@ -745,23 +756,23 @@ func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, chunkI
 	return nil
 }
 
-func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool {
+func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, wsItems := range s.items {
 		if n, ok := wsItems[itemID]; ok {
 			n.Content = summaryHTML
-			return true
+			return nil
 		}
 	}
-	return false
+	return domain.ErrNotFound
 }
 
-func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
-	return true
+func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
+	return nil
 }
-func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
-	return true
+func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
+	return nil
 }
 
 func (s *Store) LogJobEvent(ctx context.Context, e joblog.Event) error {

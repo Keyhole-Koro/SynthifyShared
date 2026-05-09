@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/synthify/backend/packages/shared/domain"
 	"github.com/synthify/backend/packages/shared/joblog"
 	"github.com/synthify/backend/packages/shared/repository"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 )
 
 type DBLogger struct {
@@ -39,7 +41,7 @@ func (s *Store) LogJobEvent(ctx context.Context, e joblog.Event) error {
 	return err
 }
 
-func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, bool) {
+func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 500
 	}
@@ -49,7 +51,7 @@ func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string,
 	if pageToken != "" {
 		cursor, err := decodeJobLogCursor(pageToken)
 		if err != nil {
-			return nil, "", false
+			return nil, "", err
 		}
 		args = append(args, cursor.Timestamp, cursor.SourceID)
 		where += fmt.Sprintf(" AND (timestamp, source_id) < ($%d, $%d)", len(args)-1, len(args))
@@ -65,16 +67,16 @@ LIMIT $%d`, unifiedJobLogsSourceSQL(), where, len(args))
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, "", false
+		return nil, "", err
 	}
 	defer rows.Close()
 
 	logRows, err := scanJobLogRows(rows)
 	if err != nil {
-		return nil, "", false
+		return nil, "", err
 	}
 	logs, nextPageToken := paginateLogRows(logRows, limit)
-	return logs, nextPageToken, true
+	return logs, nextPageToken, nil
 }
 
 func (s *Store) SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error) {
@@ -293,6 +295,11 @@ type jobLogRow struct {
 	JobID       string
 	DocumentID  string
 	WorkspaceID string
+}
+
+func parseJobStatus(s string) treev1.JobLifecycleState {
+	status, _ := strconv.Atoi(s)
+	return treev1.JobLifecycleState(status)
 }
 
 func encodeJobLogCursor(ts time.Time, sourceID string) string {

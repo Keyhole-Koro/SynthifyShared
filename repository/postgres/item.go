@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/synthify/backend/packages/shared/domain"
@@ -11,12 +12,15 @@ import (
 	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 )
 
-func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, bool) {
+func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, error) {
 	row, err := s.q().GetItem(ctx, itemID)
 	if err != nil {
-		return nil, false
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return toItemFromGetRow(row), true
+	return toItemFromGetRow(row), nil
 }
 
 func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item {
@@ -151,29 +155,32 @@ func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, chunkI
 	})
 }
 
-func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool {
+func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error {
 	if capability == nil || !capability.Allows(treev1.JobOperation_JOB_OPERATION_UPDATE_ITEM) || capability.IsExpired(nowTime()) {
-		return false
+		return fmt.Errorf("mutation not allowed by capability or expired")
 	}
 
 	row, err := s.q().GetItemSummaryUpdateContext(ctx, itemID)
 	if err != nil {
-		return false
+		if err == sql.ErrNoRows {
+			return domain.ErrNotFound
+		}
+		return err
 	}
 	if capability.WorkspaceID != "" && capability.WorkspaceID != row.WorkspaceID {
-		return false
+		return fmt.Errorf("workspace mismatch")
 	}
 	if !capability.AllowsItem(itemID) {
-		return false
+		return fmt.Errorf("item not in capability scope")
 	}
 	if row.GovernanceState == "human_curated" || row.GovernanceState == "locked" {
-		return false
+		return fmt.Errorf("item is protected")
 	}
 
 	now := nowTime()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return false
+		return err
 	}
 	defer tx.Rollback()
 
@@ -184,8 +191,11 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capabil
 		LastMutationJobID: jobID,
 		UpdatedAt:         now,
 	})
-	if err != nil || affected == 0 {
-		return false
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
 	}
 	if err := s.logMutationTx(ctx, tx, &domain.JobMutationLog{
 		MutationID:     newID(),
@@ -201,27 +211,33 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capabil
 		ProvenanceJSON: mustJSON(map[string]any{"field": "content"}),
 		CreatedAt:      now.Format(time.RFC3339),
 	}); err != nil {
-		return false
+		return err
 	}
-	return tx.Commit() == nil
+	return tx.Commit()
 }
 
-func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
-	return s.q().UpsertApprovedAlias(ctx, sqlcgen.UpsertApprovedAliasParams{
+func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
+	if err := s.q().UpsertApprovedAlias(ctx, sqlcgen.UpsertApprovedAliasParams{
 		WorkspaceID:     wsID,
 		CanonicalItemID: canonicalItemID,
 		AliasItemID:     aliasItemID,
 		UpdatedAt:       nowTime(),
-	}) == nil
+	}); err != nil {
+		return fmt.Errorf("approve alias: %w", err)
+	}
+	return nil
 }
 
-func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool {
-	return s.q().UpsertRejectedAlias(ctx, sqlcgen.UpsertRejectedAliasParams{
+func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
+	if err := s.q().UpsertRejectedAlias(ctx, sqlcgen.UpsertRejectedAliasParams{
 		WorkspaceID:     wsID,
 		CanonicalItemID: canonicalItemID,
 		AliasItemID:     aliasItemID,
 		UpdatedAt:       nowTime(),
-	}) == nil
+	}); err != nil {
+		return fmt.Errorf("reject alias: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) canMutateTree(capability *domain.JobCapability, op treev1.JobOperation, workspaceID, documentID string) bool {

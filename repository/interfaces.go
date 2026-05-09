@@ -17,58 +17,58 @@ type AccountRepository interface {
 
 type WorkspaceRepository interface {
 	ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace
-	GetWorkspace(ctx context.Context, id string) (*domain.Workspace, bool)
+	GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error)
 	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool
 	CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace
 }
 
 type DocumentRepository interface {
 	ListDocuments(ctx context.Context, wsID string) []*domain.Document
-	GetDocument(ctx context.Context, id string) (*domain.Document, bool)
-	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, bool)
-	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, bool)
+	GetDocument(ctx context.Context, id string) (*domain.Document, error)
+	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
+	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
 	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
-	GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, bool)
-	GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, bool)
-	GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, bool)
-	GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, bool)
-	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) bool
-	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) bool
-	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, bool)
-	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, bool)
-	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, bool)
-	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) bool
-	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) bool
+	GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error)
+	GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error)
+	GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, error)
+	GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, error)
+	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) error
+	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) error
+	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error)
+	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, error)
+	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error)
+	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error
+	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error
 	SearchRelatedChunks(ctx context.Context, workspaceID, query string, limit int) ([]*domain.DocumentChunk, error)
 	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 	CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob
-	MarkProcessingJobRunning(ctx context.Context, jobID string) bool
-	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) bool
-	FailProcessingJob(ctx context.Context, jobID, errorMessage string) bool
-	CompleteProcessingJob(ctx context.Context, jobID string) bool
+	MarkProcessingJobRunning(ctx context.Context, jobID string) error
+	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
+	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error
+	CompleteProcessingJob(ctx context.Context, jobID string) error
 	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
-	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, bool)
-	ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, bool)
-	ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, bool)
+	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error)
+	ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, error)
+	ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, error)
 	SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error)
 	ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string, pageToken string, limit int) ([]*domain.JobLogGroup, string, error)
 }
 
 type TreeRepository interface {
 	GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error)
-	GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, bool)
-	GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, bool)
-	FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, bool)
+	GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error)
+	GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error)
+	FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error)
 	GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
 }
 
 type ItemRepository interface {
-	GetItem(ctx context.Context, itemID string) (*domain.Item, bool)
+	GetItem(ctx context.Context, itemID string) (*domain.Item, error)
 	CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item
 	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item
 	UpsertItemSource(ctx context.Context, itemID, documentID, chunkID, sourceText string, confidence float64) error
-	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) bool
-	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool
-	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) bool
+	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
+	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
+	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 }

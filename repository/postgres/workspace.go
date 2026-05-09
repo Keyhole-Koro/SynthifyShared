@@ -115,10 +115,13 @@ func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*doma
 	return workspaces
 }
 
-func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, bool) {
+func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error) {
 	row, err := s.q().GetWorkspace(ctx, id)
 	if err != nil {
-		return nil, false
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
 	ws := toWorkspace(sqlcgen.Workspace{
 		WorkspaceID: row.WorkspaceID,
@@ -127,7 +130,7 @@ func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace,
 		CreatedAt:   row.CreatedAt,
 	})
 	ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(ctx, id)
-	return ws, true
+	return ws, nil
 }
 
 func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool {
@@ -182,12 +185,15 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *do
 	}
 }
 
-func (s *Store) GetWorkspaceRootItemIDByWorkspace(ctx context.Context, workspaceID string) (string, bool) {
+func (s *Store) GetWorkspaceRootItemIDByWorkspace(ctx context.Context, workspaceID string) (string, error) {
 	row, err := s.q().GetTreeRoot(ctx, workspaceID)
 	if err != nil {
-		return "", false
+		if err == sql.ErrNoRows {
+			return "", domain.ErrNotFound
+		}
+		return "", err
 	}
-	return row.ID, true
+	return row.ID, nil
 }
 
 func toAccount(row sqlcgen.Account) *domain.Account {

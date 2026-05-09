@@ -18,23 +18,24 @@ type Payload struct {
 }
 
 type Notifier interface {
-	Queued(ctx context.Context, payload Payload)
-	Running(ctx context.Context, payload Payload)
-	Stage(ctx context.Context, payload Payload, stage string)
-	StageProgress(ctx context.Context, payload Payload, stage string, progress int, message string)
-	Failed(ctx context.Context, payload Payload, errorMessage string)
-	Completed(ctx context.Context, payload Payload)
+	Queued(ctx context.Context, payload Payload) error
+	Running(ctx context.Context, payload Payload) error
+	Stage(ctx context.Context, payload Payload, stage string) error
+	StageProgress(ctx context.Context, payload Payload, stage string, progress int, message string) error
+	Failed(ctx context.Context, payload Payload, errorMessage string) error
+	Completed(ctx context.Context, payload Payload) error
 }
 
 type noopNotifier struct{}
 
-func (noopNotifier) Queued(context.Context, Payload)        {}
-func (noopNotifier) Running(context.Context, Payload)       {}
-func (noopNotifier) Stage(context.Context, Payload, string) {}
-func (noopNotifier) StageProgress(context.Context, Payload, string, int, string) {
+func (noopNotifier) Queued(context.Context, Payload) error        { return nil }
+func (noopNotifier) Running(context.Context, Payload) error       { return nil }
+func (noopNotifier) Stage(context.Context, Payload, string) error { return nil }
+func (noopNotifier) StageProgress(context.Context, Payload, string, int, string) error {
+	return nil
 }
-func (noopNotifier) Failed(context.Context, Payload, string) {}
-func (noopNotifier) Completed(context.Context, Payload)      {}
+func (noopNotifier) Failed(context.Context, Payload, string) error { return nil }
+func (noopNotifier) Completed(context.Context, Payload) error      { return nil }
 
 type firestoreNotifier struct {
 	client *firestore.Client
@@ -60,8 +61,8 @@ func NewNotifier(ctx context.Context, projectID string) Notifier {
 	return &firestoreNotifier{client: client}
 }
 
-func (n *firestoreNotifier) Queued(ctx context.Context, payload Payload) {
-	n.write(ctx, payload, map[string]any{
+func (n *firestoreNotifier) Queued(ctx context.Context, payload Payload) error {
+	return n.write(ctx, payload, map[string]any{
 		"status":       "queued",
 		"currentStage": "",
 		"progress":     0,
@@ -72,8 +73,8 @@ func (n *firestoreNotifier) Queued(ctx context.Context, payload Payload) {
 	})
 }
 
-func (n *firestoreNotifier) Running(ctx context.Context, payload Payload) {
-	n.write(ctx, payload, map[string]any{
+func (n *firestoreNotifier) Running(ctx context.Context, payload Payload) error {
+	return n.write(ctx, payload, map[string]any{
 		"status":       "running",
 		"progress":     5,
 		"message":      "Processing started",
@@ -83,11 +84,11 @@ func (n *firestoreNotifier) Running(ctx context.Context, payload Payload) {
 	})
 }
 
-func (n *firestoreNotifier) Stage(ctx context.Context, payload Payload, stage string) {
-	n.StageProgress(ctx, payload, stage, -1, "")
+func (n *firestoreNotifier) Stage(ctx context.Context, payload Payload, stage string) error {
+	return n.StageProgress(ctx, payload, stage, -1, "")
 }
 
-func (n *firestoreNotifier) StageProgress(ctx context.Context, payload Payload, stage string, progress int, message string) {
+func (n *firestoreNotifier) StageProgress(ctx context.Context, payload Payload, stage string, progress int, message string) error {
 	fields := map[string]any{
 		"status":       "running",
 		"currentStage": stage,
@@ -99,11 +100,11 @@ func (n *firestoreNotifier) StageProgress(ctx context.Context, payload Payload, 
 	if message != "" {
 		fields["message"] = message
 	}
-	n.write(ctx, payload, fields)
+	return n.write(ctx, payload, fields)
 }
 
-func (n *firestoreNotifier) Failed(ctx context.Context, payload Payload, errorMessage string) {
-	n.write(ctx, payload, map[string]any{
+func (n *firestoreNotifier) Failed(ctx context.Context, payload Payload, errorMessage string) error {
+	return n.write(ctx, payload, map[string]any{
 		"status":       "failed",
 		"currentStage": "",
 		"message":      "Failed",
@@ -113,8 +114,8 @@ func (n *firestoreNotifier) Failed(ctx context.Context, payload Payload, errorMe
 	})
 }
 
-func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) {
-	n.write(ctx, payload, map[string]any{
+func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) error {
+	return n.write(ctx, payload, map[string]any{
 		"status":       "succeeded",
 		"currentStage": "",
 		"progress":     100,
@@ -125,7 +126,7 @@ func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) {
 	})
 }
 
-func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields map[string]any) {
+func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields map[string]any) error {
 	doc := map[string]any{
 		"jobId":       payload.JobID,
 		"jobType":     payload.JobType,
@@ -139,7 +140,9 @@ func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields m
 	_, err := n.client.Collection("workspaces").Doc(payload.WorkspaceID).Collection("jobs").Doc(payload.JobID).Set(ctx, doc, firestore.MergeAll)
 	if err != nil {
 		log.Printf("jobstatus: firestore write failed: %v", err)
+		return err
 	}
+	return nil
 }
 
 func nowRFC3339() string {
