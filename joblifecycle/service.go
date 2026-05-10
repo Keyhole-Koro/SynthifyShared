@@ -3,10 +3,14 @@ package joblifecycle
 import (
 	"context"
 
+	"github.com/synthify/backend/packages/shared/domain"
 	"github.com/synthify/backend/packages/shared/jobstatus"
 )
 
 type Repository interface {
+	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error)
+	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error
+	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error
 	CompleteProcessingJob(ctx context.Context, jobID string) error
@@ -33,6 +37,18 @@ func (s *Service) NotifyQueued(ctx context.Context, payload jobstatus.Payload) {
 	if err := s.notifier.Queued(ctx, payload); err != nil {
 		s.logf("jobstatus: failed to notify queued: %v", err)
 	}
+}
+
+func (s *Service) RequestApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error) {
+	return s.repo.RequestJobApproval(ctx, jobID, requestedBy, reason)
+}
+
+func (s *Service) ApproveApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error {
+	return s.repo.ApproveJobApproval(ctx, jobID, approvalID, reviewedBy)
+}
+
+func (s *Service) RejectApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error {
+	return s.repo.RejectJobApproval(ctx, jobID, approvalID, reviewedBy, reason)
 }
 
 func (s *Service) MarkRunning(ctx context.Context, payload jobstatus.Payload) error {
