@@ -76,6 +76,19 @@ func (s *Store) GetAccount(ctx context.Context, id string) (*domain.Account, err
 	return nil, domain.ErrNotFound
 }
 
+func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if accountID == "" || userID == "" {
+		return false
+	}
+	account, ok := s.accounts[accountID]
+	if !ok {
+		return false
+	}
+	return account.AccountID == userID
+}
+
 // WorkspaceRepository
 func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace {
 	s.mu.RLock()

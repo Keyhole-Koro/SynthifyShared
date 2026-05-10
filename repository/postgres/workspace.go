@@ -105,6 +105,14 @@ func (s *Store) GetAccount(ctx context.Context, accountID string) (*domain.Accou
 	}), nil
 }
 
+func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) bool {
+	accessible, err := s.q().IsAccountAccessible(ctx, sqlcgen.IsAccountAccessibleParams{
+		AccountID: accountID,
+		UserID:    userID,
+	})
+	return err == nil && accessible
+}
+
 func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace {
 	rows, err := s.q().ListWorkspacesByUser(ctx, userID)
 	if err != nil {

@@ -194,6 +194,25 @@ func (q *Queries) GetWorkspace(ctx context.Context, workspaceID string) (GetWork
 	return i, err
 }
 
+const isAccountAccessible = `-- name: IsAccountAccessible :one
+SELECT EXISTS(
+  SELECT 1 FROM account_users
+  WHERE account_id = $1 AND user_id = $2
+)::bool AS accessible
+`
+
+type IsAccountAccessibleParams struct {
+	AccountID string
+	UserID    string
+}
+
+func (q *Queries) IsAccountAccessible(ctx context.Context, arg IsAccountAccessibleParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isAccountAccessible, arg.AccountID, arg.UserID)
+	var accessible bool
+	err := row.Scan(&accessible)
+	return accessible, err
+}
+
 const isWorkspaceAccessible = `-- name: IsWorkspaceAccessible :one
 SELECT EXISTS(
   SELECT 1 FROM workspaces w

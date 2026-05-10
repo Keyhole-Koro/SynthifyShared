@@ -43,6 +43,8 @@ func ToConnectError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
+	case errors.Is(err, domain.ErrNotImplemented):
+		return connect.NewError(connect.CodeUnimplemented, err)
 	case errors.Is(err, domain.ErrApprovalRequired), errors.Is(err, domain.ErrPlanRejected):
 		return connect.NewError(connect.CodeFailedPrecondition, err)
 	case errors.Is(err, context.Canceled):

@@ -13,6 +13,7 @@ type DocumentSourceURLBuilder func(workspaceID, documentID string) string
 type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
+	IsAccountAccessible(ctx context.Context, accountID, userID string) bool
 }
 
 type WorkspaceRepository interface {

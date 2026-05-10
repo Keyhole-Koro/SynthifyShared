@@ -33,6 +33,7 @@ func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string) *AppCo
 type Store interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
+	IsAccountAccessible(ctx context.Context, accountID, userID string) bool
 	ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace
 	GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error)
 	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool
