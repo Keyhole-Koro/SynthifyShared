@@ -13,16 +13,18 @@ import (
 )
 
 type Account struct {
-	AccountID          string
-	Name               string
-	Plan               string
-	StorageQuotaBytes  int64
-	StorageUsedBytes   int64
-	MaxFileSizeBytes   int64
-	MaxUploadsPer5h    int32
-	MaxUploadsPer1week int32
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	AccountID            string
+	Name                 string
+	Plan                 string
+	StorageQuotaBytes    int64
+	StorageUsedBytes     int64
+	MaxFileSizeBytes     int64
+	MaxUploadsPer5h      int32
+	MaxUploadsPer1week   int32
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type AccountUser struct {

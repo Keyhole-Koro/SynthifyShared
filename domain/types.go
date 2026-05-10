@@ -18,7 +18,7 @@ var (
 
 	// Severity markers
 	ErrCritical = errors.New("critical system error") // Triggers CRITICAL alert
-	ErrJobError = errors.New("job level error")      // Triggers ERROR notification
+	ErrJobError = errors.New("job level error")       // Triggers ERROR notification
 
 	// Checkpoint exceptions
 	ErrCheckpointNotFound = errors.New("checkpoint not found")
@@ -93,15 +93,17 @@ type SectionBrief struct {
 }
 
 type Account struct {
-	AccountID          string `json:"account_id"`
-	Name               string `json:"name"`
-	Plan               string `json:"plan"` // "anonymous" | "registered" | "pro"
-	StorageQuotaBytes  int64  `json:"storage_quota_bytes"`
-	StorageUsedBytes   int64  `json:"storage_used_bytes"`
-	MaxFileSizeBytes   int64  `json:"max_file_size_bytes"`
-	MaxUploadsPerFiveH int64  `json:"max_uploads_per_5h"`
-	MaxUploadsPerWeek  int64  `json:"max_uploads_per_1week"`
-	CreatedAt          string `json:"created_at"`
+	AccountID            string `json:"account_id"`
+	Name                 string `json:"name"`
+	Plan                 string `json:"plan"` // "free" | "pro"
+	StorageQuotaBytes    int64  `json:"storage_quota_bytes"`
+	StorageUsedBytes     int64  `json:"storage_used_bytes"`
+	MaxFileSizeBytes     int64  `json:"max_file_size_bytes"`
+	MaxUploadsPerFiveH   int64  `json:"max_uploads_per_5h"`
+	MaxUploadsPerWeek    int64  `json:"max_uploads_per_1week"`
+	StripeCustomerID     string `json:"stripe_customer_id,omitempty"`
+	StripeSubscriptionID string `json:"stripe_subscription_id,omitempty"`
+	CreatedAt            string `json:"created_at"`
 }
 
 type AccountUser struct {

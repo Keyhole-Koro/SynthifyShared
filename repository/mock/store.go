@@ -56,10 +56,12 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 		return a, nil
 	}
 	a := &domain.Account{
-		AccountID: userID,
-		Name:      "User " + userID,
-		Plan:      "anonymous",
-		CreatedAt: time.Now().Format(time.RFC3339),
+		AccountID:            userID,
+		Name:                 "User " + userID,
+		Plan:                 "free",
+		StripeCustomerID:     "",
+		StripeSubscriptionID: "",
+		CreatedAt:            time.Now().Format(time.RFC3339),
 	}
 	s.accounts[userID] = a
 	return a, nil
@@ -321,7 +323,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 	return j
 }
 
-func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error { return nil }
+func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error        { return nil }
 func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error { return nil }
 func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) error { return nil }
 func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error           { return nil }

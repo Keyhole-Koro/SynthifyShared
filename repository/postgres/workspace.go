@@ -10,8 +10,8 @@ import (
 	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 )
 
-// defaultRegisteredPlan defines the default plan limits for newly created users.
-var defaultRegisteredPlan = struct {
+// defaultFreePlan defines the default plan limits for newly created accounts.
+var defaultFreePlan = struct {
 	StorageQuotaBytes int64
 	MaxFileSizeBytes  int64
 	MaxUploadsPer5h   int64
@@ -28,15 +28,18 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 	existing, err := s.q().GetAccountByUser(ctx, userID)
 	if err == nil {
 		acct := toAccount(sqlcgen.Account{
-			AccountID:          existing.AccountID,
-			Name:               existing.Name,
-			Plan:               existing.Plan,
-			StorageQuotaBytes:  existing.StorageQuotaBytes,
-			StorageUsedBytes:   existing.StorageUsedBytes,
-			MaxFileSizeBytes:   existing.MaxFileSizeBytes,
-			MaxUploadsPer5h:    existing.MaxUploadsPer5h,
-			MaxUploadsPer1week: existing.MaxUploadsPer1week,
-			CreatedAt:          existing.CreatedAt,
+			AccountID:            existing.AccountID,
+			Name:                 existing.Name,
+			Plan:                 existing.Plan,
+			StorageQuotaBytes:    existing.StorageQuotaBytes,
+			StorageUsedBytes:     existing.StorageUsedBytes,
+			MaxFileSizeBytes:     existing.MaxFileSizeBytes,
+			MaxUploadsPer5h:      existing.MaxUploadsPer5h,
+			MaxUploadsPer1week:   existing.MaxUploadsPer1week,
+			StripeCustomerID:     existing.StripeCustomerID,
+			StripeSubscriptionID: existing.StripeSubscriptionID,
+			CreatedAt:            existing.CreatedAt,
+			UpdatedAt:            existing.UpdatedAt,
 		})
 		return acct, nil
 	}
@@ -47,11 +50,11 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 	row, err := s.q().GetOrCreateAccount(ctx, sqlcgen.GetOrCreateAccountParams{
 		AccountID:          accountID,
 		Name:               fmt.Sprintf("account-%s", userID),
-		Plan:               "registered",
-		StorageQuotaBytes:  defaultRegisteredPlan.StorageQuotaBytes,
-		MaxFileSizeBytes:   defaultRegisteredPlan.MaxFileSizeBytes,
-		MaxUploadsPer5h:    int32(defaultRegisteredPlan.MaxUploadsPer5h),
-		MaxUploadsPer1week: int32(defaultRegisteredPlan.MaxUploadsPerWeek),
+		Plan:               "free",
+		StorageQuotaBytes:  defaultFreePlan.StorageQuotaBytes,
+		MaxFileSizeBytes:   defaultFreePlan.MaxFileSizeBytes,
+		MaxUploadsPer5h:    int32(defaultFreePlan.MaxUploadsPer5h),
+		MaxUploadsPer1week: int32(defaultFreePlan.MaxUploadsPerWeek),
 		CreatedAt:          createdAt,
 	})
 	if err != nil {
@@ -66,15 +69,18 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 	})
 
 	return toAccount(sqlcgen.Account{
-		AccountID:          row.AccountID,
-		Name:               row.Name,
-		Plan:               row.Plan,
-		StorageQuotaBytes:  row.StorageQuotaBytes,
-		StorageUsedBytes:   row.StorageUsedBytes,
-		MaxFileSizeBytes:   row.MaxFileSizeBytes,
-		MaxUploadsPer5h:    row.MaxUploadsPer5h,
-		MaxUploadsPer1week: row.MaxUploadsPer1week,
-		CreatedAt:          row.CreatedAt,
+		AccountID:            row.AccountID,
+		Name:                 row.Name,
+		Plan:                 row.Plan,
+		StorageQuotaBytes:    row.StorageQuotaBytes,
+		StorageUsedBytes:     row.StorageUsedBytes,
+		MaxFileSizeBytes:     row.MaxFileSizeBytes,
+		MaxUploadsPer5h:      row.MaxUploadsPer5h,
+		MaxUploadsPer1week:   row.MaxUploadsPer1week,
+		StripeCustomerID:     row.StripeCustomerID,
+		StripeSubscriptionID: row.StripeSubscriptionID,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
 	}), nil
 }
 
@@ -84,15 +90,18 @@ func (s *Store) GetAccount(ctx context.Context, accountID string) (*domain.Accou
 		return nil, err
 	}
 	return toAccount(sqlcgen.Account{
-		AccountID:          row.AccountID,
-		Name:               row.Name,
-		Plan:               row.Plan,
-		StorageQuotaBytes:  row.StorageQuotaBytes,
-		StorageUsedBytes:   row.StorageUsedBytes,
-		MaxFileSizeBytes:   row.MaxFileSizeBytes,
-		MaxUploadsPer5h:    row.MaxUploadsPer5h,
-		MaxUploadsPer1week: row.MaxUploadsPer1week,
-		CreatedAt:          row.CreatedAt,
+		AccountID:            row.AccountID,
+		Name:                 row.Name,
+		Plan:                 row.Plan,
+		StorageQuotaBytes:    row.StorageQuotaBytes,
+		StorageUsedBytes:     row.StorageUsedBytes,
+		MaxFileSizeBytes:     row.MaxFileSizeBytes,
+		MaxUploadsPer5h:      row.MaxUploadsPer5h,
+		MaxUploadsPer1week:   row.MaxUploadsPer1week,
+		StripeCustomerID:     row.StripeCustomerID,
+		StripeSubscriptionID: row.StripeSubscriptionID,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
 	}), nil
 }
 
@@ -198,15 +207,17 @@ func (s *Store) GetWorkspaceRootItemIDByWorkspace(ctx context.Context, workspace
 
 func toAccount(row sqlcgen.Account) *domain.Account {
 	return &domain.Account{
-		AccountID:          row.AccountID,
-		Name:               row.Name,
-		Plan:               row.Plan,
-		StorageQuotaBytes:  row.StorageQuotaBytes,
-		StorageUsedBytes:   row.StorageUsedBytes,
-		MaxFileSizeBytes:   row.MaxFileSizeBytes,
-		MaxUploadsPerFiveH: int64(row.MaxUploadsPer5h),
-		MaxUploadsPerWeek:  int64(row.MaxUploadsPer1week),
-		CreatedAt:          row.CreatedAt.UTC().Format(time.RFC3339),
+		AccountID:            row.AccountID,
+		Name:                 row.Name,
+		Plan:                 row.Plan,
+		StorageQuotaBytes:    row.StorageQuotaBytes,
+		StorageUsedBytes:     row.StorageUsedBytes,
+		MaxFileSizeBytes:     row.MaxFileSizeBytes,
+		MaxUploadsPerFiveH:   int64(row.MaxUploadsPer5h),
+		MaxUploadsPerWeek:    int64(row.MaxUploadsPer1week),
+		StripeCustomerID:     row.StripeCustomerID,
+		StripeSubscriptionID: row.StripeSubscriptionID,
+		CreatedAt:            row.CreatedAt.UTC().Format(time.RFC3339),
 	}
 }
 
