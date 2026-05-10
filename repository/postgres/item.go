@@ -145,10 +145,11 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 	return item
 }
 
-func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, chunkID, sourceText string, confidence float64) error {
+func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {
 	return s.q().UpsertItemSource(ctx, sqlcgen.UpsertItemSourceParams{
 		ItemID:     itemID,
 		DocumentID: documentID,
+		FileID:     fileID,
 		ChunkID:    chunkID,
 		SourceText: sourceText,
 		Confidence: sql.NullFloat64{Float64: confidence, Valid: confidence > 0},

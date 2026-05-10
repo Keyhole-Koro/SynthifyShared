@@ -19,6 +19,7 @@ type Store struct {
 	workspaces   map[string]*domain.Workspace
 	wsOwners     map[string]string // wsID -> ownerAccountID
 	documents    map[string]*domain.Document
+	docFiles     map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
 	jobs         map[string]*domain.DocumentProcessingJob
 	capabilities map[string]*domain.JobCapability
 	plans        map[string]*domain.JobExecutionPlan
@@ -35,6 +36,7 @@ func NewStore() *Store {
 		workspaces:   make(map[string]*domain.Workspace),
 		wsOwners:     make(map[string]string),
 		documents:    make(map[string]*domain.Document),
+		docFiles:     make(map[string]map[string]*domain.DocumentFile),
 		jobs:         make(map[string]*domain.DocumentProcessingJob),
 		capabilities: make(map[string]*domain.JobCapability),
 		plans:        make(map[string]*domain.JobExecutionPlan),
@@ -180,6 +182,45 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	}
 	s.documents[d.DocumentID] = d
 	return d, "http://mock-upload-url/" + d.DocumentID
+}
+
+func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.docFiles[docID]; !ok {
+		s.docFiles[docID] = make(map[string]*domain.DocumentFile)
+	}
+	f := &domain.DocumentFile{
+		FileID:     "file-" + path,
+		DocumentID: docID,
+		Path:       path,
+		MimeType:   mimeType,
+		FileSize:   fileSize,
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+	s.docFiles[docID][f.FileID] = f
+	return f, nil
+}
+
+func (s *Store) ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var res []*domain.DocumentFile
+	for _, f := range s.docFiles[docID] {
+		res = append(res, f)
+	}
+	return res, nil
+}
+
+func (s *Store) GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, f := range s.docFiles[docID] {
+		if f.Path == path {
+			return f, nil
+		}
+	}
+	return nil, domain.ErrNotFound
 }
 
 func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error) {
@@ -777,12 +818,13 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 	return s.CreateItem(ctx, workspaceID, label, description, parentID, createdBy)
 }
 
-func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, chunkID, sourceText string, confidence float64) error {
+func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sources[itemID] = append(s.sources[itemID], &domain.ItemSource{
 		ItemID:     itemID,
 		DocumentID: documentID,
+		FileID:     fileID,
 		ChunkID:    chunkID,
 		SourceText: sourceText,
 		Confidence: confidence,

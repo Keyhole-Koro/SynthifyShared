@@ -304,14 +304,17 @@ func (q *Queries) ListChildItems(ctx context.Context, parentID sql.NullString) (
 }
 
 const listItemSources = `-- name: ListItemSources :many
-SELECT item_id, document_id, chunk_id, source_text, COALESCE(confidence, 0) AS confidence
-FROM item_sources
-WHERE item_id = $1
+SELECT s.item_id, s.document_id, s.file_id, f.path AS sub_path, s.chunk_id, s.source_text, COALESCE(s.confidence, 0) AS confidence
+FROM item_sources s
+LEFT JOIN document_files f ON f.file_id = s.file_id
+WHERE s.item_id = $1
 `
 
 type ListItemSourcesRow struct {
 	ItemID     string
 	DocumentID string
+	FileID     string
+	SubPath    sql.NullString
 	ChunkID    string
 	SourceText string
 	Confidence float64
@@ -329,6 +332,8 @@ func (q *Queries) ListItemSources(ctx context.Context, itemID string) ([]ListIte
 		if err := rows.Scan(
 			&i.ItemID,
 			&i.DocumentID,
+			&i.FileID,
+			&i.SubPath,
 			&i.ChunkID,
 			&i.SourceText,
 			&i.Confidence,
@@ -487,15 +492,16 @@ func (q *Queries) UpsertApprovedAlias(ctx context.Context, arg UpsertApprovedAli
 }
 
 const upsertItemSource = `-- name: UpsertItemSource :exec
-INSERT INTO item_sources (item_id, document_id, chunk_id, source_text, confidence)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO item_sources (item_id, document_id, file_id, chunk_id, source_text, confidence)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (item_id, document_id, chunk_id)
-DO UPDATE SET source_text = EXCLUDED.source_text, confidence = EXCLUDED.confidence
+DO UPDATE SET file_id = EXCLUDED.file_id, source_text = EXCLUDED.source_text, confidence = EXCLUDED.confidence
 `
 
 type UpsertItemSourceParams struct {
 	ItemID     string
 	DocumentID string
+	FileID     string
 	ChunkID    string
 	SourceText string
 	Confidence sql.NullFloat64
@@ -505,6 +511,7 @@ func (q *Queries) UpsertItemSource(ctx context.Context, arg UpsertItemSourcePara
 	_, err := q.db.ExecContext(ctx, upsertItemSource,
 		arg.ItemID,
 		arg.DocumentID,
+		arg.FileID,
 		arg.ChunkID,
 		arg.SourceText,
 		arg.Confidence,

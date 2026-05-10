@@ -123,6 +123,69 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	}, s.uploadURLBuilder(wsID, docID)
 }
 
+func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error) {
+	fileID := newID()
+	createdAt := nowTime()
+	if err := s.q().CreateDocumentFile(ctx, sqlcgen.CreateDocumentFileParams{
+		FileID:     fileID,
+		DocumentID: docID,
+		Path:       path,
+		MimeType:   mimeType,
+		FileSize:   fileSize,
+		CreatedAt:  createdAt,
+	}); err != nil {
+		return nil, fmt.Errorf("create document file: %w", err)
+	}
+	return &domain.DocumentFile{
+		FileID:     fileID,
+		DocumentID: docID,
+		Path:       path,
+		MimeType:   mimeType,
+		FileSize:   fileSize,
+		CreatedAt:  createdAt.Format(time.RFC3339),
+	}, nil
+}
+
+func (s *Store) ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error) {
+	rows, err := s.q().ListDocumentFiles(ctx, docID)
+	if err != nil {
+		return nil, fmt.Errorf("list document files: %w", err)
+	}
+	res := make([]*domain.DocumentFile, 0, len(rows))
+	for _, row := range rows {
+		res = append(res, &domain.DocumentFile{
+			FileID:     row.FileID,
+			DocumentID: row.DocumentID,
+			Path:       row.Path,
+			MimeType:   row.MimeType,
+			FileSize:   row.FileSize,
+			CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return res, nil
+}
+
+func (s *Store) GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error) {
+	row, err := s.q().GetDocumentFileByPath(ctx, sqlcgen.GetDocumentFileByPathParams{
+		DocumentID: docID,
+		Path:       path,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("get document file: %w", err)
+	}
+	return &domain.DocumentFile{
+		FileID:     row.FileID,
+		DocumentID: row.DocumentID,
+		Path:       row.Path,
+		MimeType:   row.MimeType,
+		FileSize:   row.FileSize,
+		CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
+	}, nil
+}
+
 func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error) {
 	row, err := s.q().GetLatestProcessingJob(ctx, docID)
 	if err != nil {
@@ -607,6 +670,7 @@ func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunk
 		if err := qtx.CreateDocumentChunk(ctx, sqlcgen.CreateDocumentChunkParams{
 			ChunkID:    newID(),
 			DocumentID: documentID,
+			FileID:     sql.NullString{String: chunk.FileID, Valid: chunk.FileID != ""},
 			Heading:    chunk.Heading,
 			Text:       chunk.Text,
 			SourcePage: sql.NullInt32{Int32: int32(chunk.SourcePage), Valid: chunk.SourcePage > 0},

@@ -172,13 +172,14 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 }
 
 const createDocumentChunk = `-- name: CreateDocumentChunk :exec
-INSERT INTO document_chunks (chunk_id, document_id, heading, text, source_page, embedding)
-VALUES ($1, $2, $3, $4, $5, $6::vector)
+INSERT INTO document_chunks (chunk_id, document_id, file_id, heading, text, source_page, embedding)
+VALUES ($1, $2, $3, $4, $5, $6, $7::vector)
 `
 
 type CreateDocumentChunkParams struct {
 	ChunkID    string
 	DocumentID string
+	FileID     sql.NullString
 	Heading    string
 	Text       string
 	SourcePage sql.NullInt32
@@ -189,10 +190,37 @@ func (q *Queries) CreateDocumentChunk(ctx context.Context, arg CreateDocumentChu
 	_, err := q.db.ExecContext(ctx, createDocumentChunk,
 		arg.ChunkID,
 		arg.DocumentID,
+		arg.FileID,
 		arg.Heading,
 		arg.Text,
 		arg.SourcePage,
 		arg.Embedding,
+	)
+	return err
+}
+
+const createDocumentFile = `-- name: CreateDocumentFile :exec
+INSERT INTO document_files (file_id, document_id, path, mime_type, file_size, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreateDocumentFileParams struct {
+	FileID     string
+	DocumentID string
+	Path       string
+	MimeType   string
+	FileSize   int64
+	CreatedAt  time.Time
+}
+
+func (q *Queries) CreateDocumentFile(ctx context.Context, arg CreateDocumentFileParams) error {
+	_, err := q.db.ExecContext(ctx, createDocumentFile,
+		arg.FileID,
+		arg.DocumentID,
+		arg.Path,
+		arg.MimeType,
+		arg.FileSize,
+		arg.CreatedAt,
 	)
 	return err
 }
@@ -418,6 +446,31 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 	return i, err
 }
 
+const getDocumentFileByPath = `-- name: GetDocumentFileByPath :one
+SELECT file_id, document_id, path, mime_type, file_size, created_at
+FROM document_files
+WHERE document_id = $1 AND path = $2
+`
+
+type GetDocumentFileByPathParams struct {
+	DocumentID string
+	Path       string
+}
+
+func (q *Queries) GetDocumentFileByPath(ctx context.Context, arg GetDocumentFileByPathParams) (DocumentFile, error) {
+	row := q.db.QueryRowContext(ctx, getDocumentFileByPath, arg.DocumentID, arg.Path)
+	var i DocumentFile
+	err := row.Scan(
+		&i.FileID,
+		&i.DocumentID,
+		&i.Path,
+		&i.MimeType,
+		&i.FileSize,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getJobApprovalPlanID = `-- name: GetJobApprovalPlanID :one
 SELECT plan_id
 FROM job_approval_requests
@@ -605,15 +658,18 @@ func (q *Queries) ListAllJobs(ctx context.Context) ([]DocumentProcessingJob, err
 }
 
 const listDocumentChunks = `-- name: ListDocumentChunks :many
-SELECT chunk_id, document_id, heading, text, source_page
-FROM document_chunks
-WHERE document_id = $1
-ORDER BY chunk_id
+SELECT c.chunk_id, c.document_id, c.file_id, f.path AS sub_path, c.heading, c.text, c.source_page
+FROM document_chunks c
+LEFT JOIN document_files f ON f.file_id = c.file_id
+WHERE c.document_id = $1
+ORDER BY c.chunk_id
 `
 
 type ListDocumentChunksRow struct {
 	ChunkID    string
 	DocumentID string
+	FileID     sql.NullString
+	SubPath    sql.NullString
 	Heading    string
 	Text       string
 	SourcePage sql.NullInt32
@@ -631,9 +687,48 @@ func (q *Queries) ListDocumentChunks(ctx context.Context, documentID string) ([]
 		if err := rows.Scan(
 			&i.ChunkID,
 			&i.DocumentID,
+			&i.FileID,
+			&i.SubPath,
 			&i.Heading,
 			&i.Text,
 			&i.SourcePage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentFiles = `-- name: ListDocumentFiles :many
+SELECT file_id, document_id, path, mime_type, file_size, created_at
+FROM document_files
+WHERE document_id = $1
+ORDER BY path ASC
+`
+
+func (q *Queries) ListDocumentFiles(ctx context.Context, documentID string) ([]DocumentFile, error) {
+	rows, err := q.db.QueryContext(ctx, listDocumentFiles, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DocumentFile
+	for rows.Next() {
+		var i DocumentFile
+		if err := rows.Scan(
+			&i.FileID,
+			&i.DocumentID,
+			&i.Path,
+			&i.MimeType,
+			&i.FileSize,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -864,10 +959,11 @@ func (q *Queries) RejectJobApproval(ctx context.Context, arg RejectJobApprovalPa
 }
 
 const searchWorkspaceDocumentChunksByVector = `-- name: SearchWorkspaceDocumentChunksByVector :many
-SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page,
+SELECT c.chunk_id, c.document_id, c.file_id, f.path AS sub_path, c.heading, c.text, c.source_page,
        1 - vector_cosine_distance(c.embedding, $1) AS similarity
 FROM document_chunks c
 INNER JOIN documents d ON d.document_id = c.document_id
+LEFT JOIN document_files f ON f.file_id = c.file_id
 WHERE d.workspace_id = $2
   AND c.embedding IS NOT NULL
   AND 1 - vector_cosine_distance(c.embedding, $1) >= $3::float8
@@ -885,6 +981,8 @@ type SearchWorkspaceDocumentChunksByVectorParams struct {
 type SearchWorkspaceDocumentChunksByVectorRow struct {
 	ChunkID    string
 	DocumentID string
+	FileID     sql.NullString
+	SubPath    sql.NullString
 	Heading    string
 	Text       string
 	SourcePage sql.NullInt32
@@ -908,6 +1006,8 @@ func (q *Queries) SearchWorkspaceDocumentChunksByVector(ctx context.Context, arg
 		if err := rows.Scan(
 			&i.ChunkID,
 			&i.DocumentID,
+			&i.FileID,
+			&i.SubPath,
 			&i.Heading,
 			&i.Text,
 			&i.SourcePage,

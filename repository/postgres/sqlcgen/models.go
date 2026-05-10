@@ -45,10 +45,20 @@ type Document struct {
 type DocumentChunk struct {
 	ChunkID    string
 	DocumentID string
+	FileID     sql.NullString
 	Heading    string
 	Text       string
 	SourcePage sql.NullInt32
 	Embedding  pgvector.Vector
+}
+
+type DocumentFile struct {
+	FileID     string
+	DocumentID string
+	Path       string
+	MimeType   string
+	FileSize   int64
+	CreatedAt  time.Time
 }
 
 type DocumentProcessingJob struct {
@@ -82,6 +92,7 @@ type ItemAlias struct {
 type ItemSource struct {
 	ItemID     string
 	DocumentID string
+	FileID     string
 	ChunkID    string
 	SourceText string
 	Confidence sql.NullFloat64

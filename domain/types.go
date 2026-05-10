@@ -129,6 +129,15 @@ type Document struct {
 	CreatedAt   string `json:"created_at"`
 }
 
+type DocumentFile struct {
+	FileID     string `json:"file_id"`
+	DocumentID string `json:"document_id"`
+	Path       string `json:"path"`
+	MimeType   string `json:"mime_type"`
+	FileSize   int64  `json:"file_size"`
+	CreatedAt  string `json:"created_at"`
+}
+
 type DocumentProcessingJob struct {
 	JobID            string                   `json:"job_id"`
 	DocumentID       string                   `json:"document_id"`
@@ -177,6 +186,7 @@ type Item struct {
 type ItemSource struct {
 	ItemID     string  `json:"item_id"`
 	DocumentID string  `json:"document_id"`
+	FileID     string  `json:"file_id"`
 	ChunkID    string  `json:"chunk_id,omitempty"`
 	SourceText string  `json:"source_text,omitempty"`
 	Confidence float64 `json:"confidence,omitempty"`
@@ -198,6 +208,7 @@ type TreeItem struct {
 type DocumentChunk struct {
 	ChunkID    string    `json:"chunk_id"`
 	DocumentID string    `json:"document_id"`
+	FileID     string    `json:"file_id"`
 	Heading    string    `json:"heading"`
 	Text       string    `json:"text"`
 	SourcePage int       `json:"source_page,omitempty"`

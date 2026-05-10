@@ -28,6 +28,9 @@ type DocumentRepository interface {
 	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
 	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
 	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
+	CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error)
+	ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error)
+	GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error)
 	GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error)
 	GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error)
 	GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, error)
@@ -66,7 +69,7 @@ type ItemRepository interface {
 	GetItem(ctx context.Context, itemID string) (*domain.Item, error)
 	CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item
 	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item
-	UpsertItemSource(ctx context.Context, itemID, documentID, chunkID, sourceText string, confidence float64) error
+	UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error
 	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
