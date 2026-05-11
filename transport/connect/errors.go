@@ -1,37 +1,14 @@
-package handlerutil
+package connectutil
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"log"
-	"net/http"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/packages/shared/domain"
 )
 
-func WriteJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("WriteJSON error: %v", err)
-	}
-}
-
-func WriteError(w http.ResponseWriter, code int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"code":    http.StatusText(code),
-		"message": msg,
-	})
-}
-
-func DecodeBody(r *http.Request, v any) error {
-	return json.NewDecoder(r.Body).Decode(v)
-}
-
-func ToConnectError(err error) error {
+func ToError(err error) error {
 	if err == nil {
 		return nil
 	}

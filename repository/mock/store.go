@@ -9,7 +9,7 @@ import (
 
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	"github.com/synthify/backend/packages/shared/joblog"
+	"github.com/synthify/backend/packages/shared/job/log"
 	"github.com/synthify/backend/packages/shared/repository"
 )
 

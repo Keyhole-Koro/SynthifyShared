@@ -5,7 +5,7 @@ import (
 
 	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/domain"
-	"github.com/synthify/backend/packages/shared/jobstatus"
+	"github.com/synthify/backend/packages/shared/job/status"
 )
 
 type Repository interface {

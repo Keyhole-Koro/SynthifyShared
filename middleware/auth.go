@@ -3,12 +3,12 @@ package middleware
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/synthify/backend/packages/shared/applog"
 )
 
 type contextKey string
@@ -31,7 +31,10 @@ func AnonymousReadAllowed(ctx context.Context) bool {
 	return allowed
 }
 
-func WithAuth(projectID string, enableAnonymous bool, next http.Handler) http.Handler {
+func WithAuth(projectID string, enableAnonymous bool, logger applog.Logger, next http.Handler) http.Handler {
+	if logger == nil {
+		logger = applog.NoopLogger{}
+	}
 	client, err := newFirebaseAuthClient(projectID)
 	if err != nil {
 		panic(err)
@@ -49,14 +52,14 @@ func WithAuth(projectID string, enableAnonymous bool, next http.Handler) http.Ha
 		authHeader := r.Header.Get("Authorization")
 		token := bearerToken(authHeader)
 		if token == "" {
-			log.Printf("Auth failure: missing or invalid Authorization header: %q", authHeader)
+			logger.Warn(r.Context(), "auth.missing_token", nil, map[string]any{"path": r.URL.Path})
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
 
 		idToken, err := client.VerifyIDToken(r.Context(), token)
 		if err != nil {
-			log.Printf("Auth failure: VerifyIDToken error: %v", err)
+			logger.Warn(r.Context(), "auth.verify_failed", err, map[string]any{"path": r.URL.Path})
 			http.Error(w, "invalid bearer token", http.StatusUnauthorized)
 			return
 		}

@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/synthify/backend/packages/shared/applog"
 )
 
 // CORS adds CORS headers for allowed origins.
@@ -38,19 +39,31 @@ func CORS(allowedOrigins string, next http.Handler) http.Handler {
 }
 
 // Logger logs the request method, path, status, and response time.
-func Logger(next http.Handler) http.Handler {
+func Logger(logger applog.Logger, next http.Handler) http.Handler {
+	if logger == nil {
+		logger = applog.NoopLogger{}
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rw, r)
 		elapsed := time.Since(start)
-		if rw.status >= 500 {
-			log.Printf("ERROR %s %s %d %s", r.Method, r.URL.Path, rw.status, elapsed)
-		} else {
-			log.Printf("%s %s %d %s", r.Method, r.URL.Path, rw.status, elapsed)
+
+		fields := map[string]any{
+			"method":  r.Method,
+			"path":    r.URL.Path,
+			"status":  rw.status,
+			"elapsed": elapsed.String(),
 		}
+
+		if rw.status >= 500 {
+			logger.Error(r.Context(), "http.request", nil, fields)
+		} else {
+			logger.Info(r.Context(), "http.request", fields)
+		}
+
 		if elapsed > 5*time.Second {
-			log.Printf("SLOW %s %s %d %s", r.Method, r.URL.Path, rw.status, elapsed)
+			logger.Warn(r.Context(), "http.request.slow", nil, fields)
 		}
 	})
 }

@@ -11,15 +11,14 @@ import (
 
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	"github.com/synthify/backend/packages/shared/joblog"
-	"github.com/synthify/backend/packages/shared/repository"
+	"github.com/synthify/backend/packages/shared/job/log"
 )
 
 type DBLogger struct {
-	repo repository.JobLogRepository
+	repo joblog.Repository
 }
 
-func NewDBLogger(repo repository.JobLogRepository) *DBLogger {
+func NewDBLogger(repo joblog.Repository) *DBLogger {
 	return &DBLogger{repo: repo}
 }
 

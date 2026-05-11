@@ -74,35 +74,6 @@ func ToProtoExecutionPlan(plan *domain.JobExecutionPlan) *treev1.JobExecutionPla
 	}
 }
 
-func ToProtoDocument(doc *domain.Document) *treev1.Document {
-	if doc == nil {
-		return nil
-	}
-	return &treev1.Document{
-		DocumentId:  doc.DocumentID,
-		WorkspaceId: doc.WorkspaceID,
-		UploadedBy:  doc.UploadedBy,
-		Filename:    doc.Filename,
-		MimeType:    doc.MimeType,
-		FileSize:    doc.FileSize,
-		Status:      treev1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_UPLOADED,
-		CreatedAt:   doc.CreatedAt,
-		UpdatedAt:   doc.CreatedAt,
-	}
-}
-
-func ToProtoWorkspace(ws *domain.Workspace) *treev1.Workspace {
-	if ws == nil {
-		return nil
-	}
-	return &treev1.Workspace{
-		WorkspaceId: ws.WorkspaceID,
-		Name:        ws.Name,
-		OwnerId:     ws.AccountID,
-		CreatedAt:   ws.CreatedAt,
-	}
-}
-
 func ToProtoJobLog(log *domain.JobLog) *treev1.JobLog {
 	if log == nil {
 		return nil
@@ -149,33 +120,5 @@ func ToProtoJobLogGroup(group *domain.JobLogGroup) *treev1.JobLogGroup {
 		WorkspaceId: group.WorkspaceID,
 		DocumentId:  group.DocumentID,
 		Jobs:        jobs,
-	}
-}
-
-func ToProtoSubtreeItem(item *domain.SubtreeItem) *treev1.SubtreeItem {
-	if item == nil {
-		return nil
-	}
-	return &treev1.SubtreeItem{
-		Item:        ToProtoItem(&item.Item),
-		HasChildren: item.HasChildren,
-	}
-}
-
-func ToProtoItem(item *domain.Item) *treev1.Item {
-	if item == nil {
-		return nil
-	}
-	return &treev1.Item{
-		Id:              item.ItemID,
-		Title:           item.Title,
-		Level:           int32(item.Level),
-		Description:     item.Description,
-		Content:         item.Content,
-		CreatedAt:       item.CreatedAt,
-		ParentId:        item.ParentID,
-		ChildIds:        item.ChildIDs,
-		Scope:           item.Scope,
-		GovernanceState: item.GovernanceState,
 	}
 }
