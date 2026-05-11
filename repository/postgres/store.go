@@ -7,6 +7,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/oklog/ulid/v2"
+	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 )
@@ -15,9 +16,10 @@ type Store struct {
 	db               *sql.DB
 	queries          *sqlcgen.Queries
 	uploadURLBuilder repository.DocumentUploadURLBuilder
+	logger           applog.Logger
 }
 
-func NewStore(ctx context.Context, dsn string, uploadURLBuilder repository.DocumentUploadURLBuilder) (*Store, error) {
+func NewStore(ctx context.Context, dsn string, uploadURLBuilder repository.DocumentUploadURLBuilder, logger applog.Logger) (*Store, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -26,7 +28,15 @@ func NewStore(ctx context.Context, dsn string, uploadURLBuilder repository.Docum
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db, queries: sqlcgen.New(db), uploadURLBuilder: uploadURLBuilder}, nil
+	if logger == nil {
+		logger = applog.NoopLogger{}
+	}
+	return &Store{
+		db:               db,
+		queries:          sqlcgen.New(db),
+		uploadURLBuilder: uploadURLBuilder,
+		logger:           logger,
+	}, nil
 }
 
 func (s *Store) Close() error {

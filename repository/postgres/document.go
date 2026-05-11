@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -108,7 +107,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		FileSize:    fileSize,
 		CreatedAt:   createdAt,
 	}); err != nil {
-		log.Printf("create document failed: %v", err)
+		s.logger.Error(ctx, "repository.create_document_failed", err, map[string]any{"workspace_id": wsID, "filename": filename})
 		return nil, ""
 	}
 

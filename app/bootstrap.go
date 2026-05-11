@@ -2,14 +2,14 @@ package app
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/config"
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 	"github.com/synthify/backend/packages/shared/job/log"
-	"github.com/synthify/backend/packages/shared/job/status"
+	jobstatus "github.com/synthify/backend/packages/shared/job/status"
 	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/repository/mock"
 	"github.com/synthify/backend/packages/shared/repository/postgres"
@@ -21,9 +21,12 @@ type AppContext struct {
 	Notifier jobstatus.Notifier
 }
 
-func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string) *AppContext {
-	store := InitStore(ctx, NewDocumentUploadURLBuilder(gcsURLBase))
-	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID)
+func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string, logger applog.Logger) *AppContext {
+	if logger == nil {
+		logger = applog.NoopLogger{}
+	}
+	store := InitStore(ctx, NewDocumentUploadURLBuilder(gcsURLBase), logger)
+	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID, logger)
 	return &AppContext{
 		Store:    store,
 		Notifier: notifier,
@@ -101,21 +104,25 @@ func NewDocumentSourceURLBuilder(base string) repository.DocumentSourceURLBuilde
 	}
 }
 
-func InitStore(ctx context.Context, uploadURLBuilder repository.DocumentUploadURLBuilder) Store {
+func InitStore(ctx context.Context, uploadURLBuilder repository.DocumentUploadURLBuilder, logger applog.Logger) Store {
+	if logger == nil {
+		logger = applog.NoopLogger{}
+	}
 	if dsn := config.LoadStore().DatabaseURL; dsn != "" {
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
-			store, err := postgres.NewStore(ctx, dsn, uploadURLBuilder)
+			store, err := postgres.NewStore(ctx, dsn, uploadURLBuilder, logger)
 			if err == nil {
-				log.Printf("using postgres store")
+				logger.Info(ctx, "app.store_initialized", map[string]any{"type": "postgres"})
 				return store
 			}
 			lastErr = err
-			log.Printf("failed to connect postgres (attempt %d/10): %v", attempt, err)
+			logger.Warn(ctx, "app.store_init_retry", err, map[string]any{"attempt": attempt})
 			time.Sleep(2 * time.Second)
 		}
-		log.Fatalf("failed to connect postgres after retries: %v", lastErr)
+		logger.Error(ctx, "app.store_init_failed", lastErr, nil)
+		panic(lastErr)
 	}
-	log.Printf("DATABASE_URL is empty, falling back to mock store")
+	logger.Info(ctx, "app.store_initialized", map[string]any{"type": "mock"})
 	return mock.NewStore()
 }
