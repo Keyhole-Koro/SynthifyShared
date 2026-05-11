@@ -18,6 +18,8 @@ type API struct {
 	FirebaseAuthEmulatorHost string
 	WorkerBaseURL            string
 	GCSFuseMountPath         string
+	NewRelicAppName          string
+	NewRelicLicenseKey       string
 }
 
 type Worker struct {
@@ -53,6 +55,8 @@ func LoadAPI() API {
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
 		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
+		NewRelicAppName:          get("NEW_RELIC_APP_NAME", "synthify-api"),
+		NewRelicLicenseKey:       os.Getenv("NEW_RELIC_LICENSE_KEY"),
 	}
 }
 
