@@ -333,7 +333,7 @@ func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reas
 
 	now := nowTime()
 	approvalID := "apr_" + newID()
-	
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -524,12 +524,12 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 	}
 
 	if err := qtx.CreateProcessingJob(ctx, sqlcgen.CreateProcessingJobParams{
-		JobID:        jobID,
-		DocumentID:   docID,
-		WorkspaceID:  doc.WorkspaceID,
-		JobType:      strconv.Itoa(int(jobType)),
-		Status:       strconv.Itoa(int(treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
-		CreatedAt:    createdAt,
+		JobID:       jobID,
+		DocumentID:  docID,
+		WorkspaceID: doc.WorkspaceID,
+		JobType:     strconv.Itoa(int(jobType)),
+		Status:      strconv.Itoa(int(treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
+		CreatedAt:   createdAt,
 	}); err != nil {
 		return nil
 	}
@@ -777,17 +777,17 @@ func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 	jobType, _ := strconv.Atoi(row.JobType)
 	status, _ := strconv.Atoi(row.Status)
 	return &domain.DocumentProcessingJob{
-		JobID:           row.JobID,
-		DocumentID:      row.DocumentID,
-		WorkspaceID:     row.WorkspaceID,
-		ExecutionPlanID: row.ExecutionPlanID,
-		JobType:         treev1.JobType(jobType),
-		Status:          treev1.JobLifecycleState(status),
-		PlanStatus:      row.PlanStatus,
+		JobID:            row.JobID,
+		DocumentID:       row.DocumentID,
+		WorkspaceID:      row.WorkspaceID,
+		ExecutionPlanID:  row.ExecutionPlanID,
+		JobType:          treev1.JobType(jobType),
+		Status:           treev1.JobLifecycleState(status),
+		PlanStatus:       row.PlanStatus,
 		EvaluationStatus: row.EvaluationStatus,
-		ErrorMessage:    row.ErrorMessage,
-		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:       row.UpdatedAt.UTC().Format(time.RFC3339),
+		ErrorMessage:     row.ErrorMessage,
+		CreatedAt:        row.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:        row.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 }
 

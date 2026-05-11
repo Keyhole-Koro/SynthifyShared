@@ -43,6 +43,14 @@ func ToConnectError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
+	case errors.Is(err, domain.ErrBillingPlanInvalid):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, domain.ErrBillingWebhookSignatureInvalid):
+		return connect.NewError(connect.CodeUnauthenticated, err)
+	case errors.Is(err, domain.ErrBillingProviderMisconfigured):
+		return connect.NewError(connect.CodeFailedPrecondition, err)
+	case errors.Is(err, domain.ErrBillingProviderNotConfigured):
+		return connect.NewError(connect.CodeUnimplemented, err)
 	case errors.Is(err, domain.ErrNotImplemented):
 		return connect.NewError(connect.CodeUnimplemented, err)
 	case errors.Is(err, domain.ErrApprovalRequired), errors.Is(err, domain.ErrPlanRejected):

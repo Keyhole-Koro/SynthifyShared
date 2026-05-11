@@ -66,9 +66,9 @@ func TestGetJobPlanningSignals_CountsProvenanceAndAliases(t *testing.T) {
 	fixture := CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "u1", treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	ws := fixture.Workspace
 
-	err := store.UpsertItemSource(ctx, "nd_tel", "doc-1", "chunk-1", "source", 0.9)
+	err := store.UpsertItemSource(ctx, "nd_tel", "doc-1", "file-1", "chunk-1", "source", 0.9)
 	require.NoError(t, err, "UpsertItemSource nd_tel")
-	err = store.UpsertItemSource(ctx, "nd_roi", "doc-1", "chunk-2", "source", 0.8)
+	err = store.UpsertItemSource(ctx, "nd_roi", "doc-1", "file-1", "chunk-2", "source", 0.8)
 	require.NoError(t, err, "UpsertItemSource nd_roi")
 
 	signals, err := store.GetJobPlanningSignals(ctx, "doc-1", ws.WorkspaceID, ws.WorkspaceID)

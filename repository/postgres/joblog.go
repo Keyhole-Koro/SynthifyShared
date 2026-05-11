@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/synthify/backend/packages/shared/domain"
+	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 	"github.com/synthify/backend/packages/shared/joblog"
 	"github.com/synthify/backend/packages/shared/repository"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 )
 
 type DBLogger struct {

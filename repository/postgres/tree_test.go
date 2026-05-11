@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestFindPaths_DBError_ReturnsError(t *testing.T) {

@@ -57,7 +57,7 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 		Title:       item.Title,
 		Level:       int32(item.Level),
 		Description: item.Description,
-		Content: item.Content,
+		Content:     item.Content,
 		CreatedBy:   item.CreatedBy,
 		CreatedAt:   createdAt,
 	}); err != nil {
