@@ -41,6 +41,11 @@ func WithAuth(projectID string, enableAnonymous bool, logger applog.Logger, next
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isStripeWebhookPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// allowAnonymous is primarily used by tools like log-viewer to access job/log data without per-workspace membership.
 		// TODO: Re-evaluate security implications and consider a more robust service-to-service auth for these tools.
 		if enableAnonymous && isAnonymousPathAllowed(r.URL.Path) {
@@ -85,6 +90,10 @@ func isAnonymousPathAllowed(path string) bool {
 	default:
 		return false
 	}
+}
+
+func isStripeWebhookPath(path string) bool {
+	return path == "/stripe/webhook"
 }
 
 func newFirebaseAuthClient(projectID string) (*firebaseauth.Client, error) {

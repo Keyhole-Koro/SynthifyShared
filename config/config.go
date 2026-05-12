@@ -20,6 +20,15 @@ type API struct {
 	GCSFuseMountPath         string
 	NewRelicAppName          string
 	NewRelicLicenseKey       string
+	StripeSecretKey          string
+	StripeWebhookSecret      string
+	StripeProPriceID         string
+	StripeProPriceIDJPY      string
+	StripeProPriceIDUSD      string
+	StripeDefaultCurrency    string
+	BillingSuccessURL        string
+	BillingCancelURL         string
+	BillingPortalReturnURL   string
 }
 
 type Worker struct {
@@ -57,6 +66,15 @@ func LoadAPI() API {
 		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
 		NewRelicAppName:          get("NEW_RELIC_APP_NAME", "synthify-api"),
 		NewRelicLicenseKey:       os.Getenv("NEW_RELIC_LICENSE_KEY"),
+		StripeSecretKey:          os.Getenv("STRIPE_SECRET_KEY"),
+		StripeWebhookSecret:      os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		StripeProPriceID:         os.Getenv("STRIPE_PRO_PRICE_ID"),
+		StripeProPriceIDJPY:      os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
+		StripeProPriceIDUSD:      os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
+		StripeDefaultCurrency:    get("STRIPE_DEFAULT_CURRENCY", "jpy"),
+		BillingSuccessURL:        get("BILLING_SUCCESS_URL", "http://localhost:3000/workspaces?billing=success"),
+		BillingCancelURL:         get("BILLING_CANCEL_URL", "http://localhost:3000/workspaces?billing=cancel"),
+		BillingPortalReturnURL:   get("BILLING_PORTAL_RETURN_URL", "http://localhost:3000/workspaces"),
 	}
 }
 

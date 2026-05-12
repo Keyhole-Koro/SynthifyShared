@@ -12,10 +12,14 @@ import (
 )
 
 var (
-	ErrNotFound         = errors.New("not found")
-	ErrApprovalRequired = errors.New("job execution plan requires approval")
-	ErrPlanRejected     = errors.New("job execution plan was rejected")
-	ErrNotImplemented   = errors.New("not implemented")
+	ErrNotFound             = errors.New("not found")
+	ErrApprovalRequired     = errors.New("job execution plan requires approval")
+	ErrPlanRejected         = errors.New("job execution plan was rejected")
+	ErrNotImplemented       = errors.New("not implemented")
+	ErrFileTooLarge         = errors.New("file exceeds max file size")
+	ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
+	ErrUploadNotConfirmed   = errors.New("upload is not confirmed")
+	ErrUploadSizeMismatch   = errors.New("uploaded object size does not match reservation")
 
 	// Severity markers
 	ErrCritical = errors.New("critical system error") // Triggers CRITICAL alert
@@ -104,6 +108,14 @@ type Account struct {
 	MaxUploadsPerWeek    int64  `json:"max_uploads_per_1week"`
 	StripeCustomerID     string `json:"stripe_customer_id,omitempty"`
 	StripeSubscriptionID string `json:"stripe_subscription_id,omitempty"`
+	BillingStatus        string `json:"billing_status,omitempty"`
+	StripePriceID        string `json:"stripe_price_id,omitempty"`
+	BillingCurrency      string `json:"billing_currency,omitempty"`
+	BillingAmountMinor   int64  `json:"billing_amount_minor,omitempty"`
+	BillingInterval      string `json:"billing_interval,omitempty"`
+	CurrentPeriodEnd     string `json:"current_period_end,omitempty"`
+	CancelAtPeriodEnd    bool   `json:"cancel_at_period_end,omitempty"`
+	BillingUpdatedAt     string `json:"billing_updated_at,omitempty"`
 	CreatedAt            string `json:"created_at"`
 }
 
@@ -115,11 +127,17 @@ type AccountUser struct {
 }
 
 type Workspace struct {
-	WorkspaceID string `json:"workspace_id"`
-	AccountID   string `json:"account_id"`
-	Name        string `json:"name"`
-	RootItemID  string `json:"root_item_id,omitempty"`
-	CreatedAt   string `json:"created_at"`
+	WorkspaceID        string `json:"workspace_id"`
+	AccountID          string `json:"account_id"`
+	Name               string `json:"name"`
+	Plan               string `json:"plan,omitempty"`
+	StorageUsedBytes   int64  `json:"storage_used_bytes,omitempty"`
+	StorageQuotaBytes  int64  `json:"storage_quota_bytes,omitempty"`
+	MaxFileSizeBytes   int64  `json:"max_file_size_bytes,omitempty"`
+	MaxUploadsPerFiveH int64  `json:"max_uploads_per_5h,omitempty"`
+	MaxUploadsPerWeek  int64  `json:"max_uploads_per_1week,omitempty"`
+	RootItemID         string `json:"root_item_id,omitempty"`
+	CreatedAt          string `json:"created_at"`
 }
 
 type Document struct {
@@ -139,6 +157,11 @@ type DocumentFile struct {
 	MimeType   string `json:"mime_type"`
 	FileSize   int64  `json:"file_size"`
 	CreatedAt  string `json:"created_at"`
+}
+
+type ObjectMetadata struct {
+	Size        int64  `json:"size"`
+	ContentType string `json:"content_type,omitempty"`
 }
 
 type DocumentProcessingJob struct {

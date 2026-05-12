@@ -14,37 +14,51 @@ import (
 )
 
 type Store struct {
-	mu           sync.RWMutex
-	accounts     map[string]*domain.Account
-	workspaces   map[string]*domain.Workspace
-	wsOwners     map[string]string // wsID -> ownerAccountID
-	documents    map[string]*domain.Document
-	docFiles     map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
-	jobs         map[string]*domain.DocumentProcessingJob
-	capabilities map[string]*domain.JobCapability
-	plans        map[string]*domain.JobExecutionPlan
-	approvals    map[string][]*domain.JobApprovalRequest
-	items        map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
-	sources      map[string][]*domain.ItemSource
-	chunks       map[string][]*domain.DocumentChunk
-	checkpoints  map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
+	mu            sync.RWMutex
+	accounts      map[string]*domain.Account
+	workspaces    map[string]*domain.Workspace
+	wsOwners      map[string]string // wsID -> ownerAccountID
+	documents     map[string]*domain.Document
+	docFiles      map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
+	jobs          map[string]*domain.DocumentProcessingJob
+	capabilities  map[string]*domain.JobCapability
+	plans         map[string]*domain.JobExecutionPlan
+	approvals     map[string][]*domain.JobApprovalRequest
+	items         map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
+	sources       map[string][]*domain.ItemSource
+	chunks        map[string][]*domain.DocumentChunk
+	checkpoints   map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
+	reservations  map[string]*uploadReservation
+	billingEvents map[string]string
+}
+
+type uploadReservation struct {
+	AccountID    string
+	WorkspaceID  string
+	DocumentID   string
+	ExpectedSize int64
+	ActualSize   int64
+	Status       string
+	ExpiresAt    time.Time
 }
 
 func NewStore() *Store {
 	return &Store{
-		accounts:     make(map[string]*domain.Account),
-		workspaces:   make(map[string]*domain.Workspace),
-		wsOwners:     make(map[string]string),
-		documents:    make(map[string]*domain.Document),
-		docFiles:     make(map[string]map[string]*domain.DocumentFile),
-		jobs:         make(map[string]*domain.DocumentProcessingJob),
-		capabilities: make(map[string]*domain.JobCapability),
-		plans:        make(map[string]*domain.JobExecutionPlan),
-		approvals:    make(map[string][]*domain.JobApprovalRequest),
-		items:        make(map[string]map[string]*domain.Item),
-		sources:      make(map[string][]*domain.ItemSource),
-		chunks:       make(map[string][]*domain.DocumentChunk),
-		checkpoints:  make(map[string]map[string]domain.JobStageCheckpoint),
+		accounts:      make(map[string]*domain.Account),
+		workspaces:    make(map[string]*domain.Workspace),
+		wsOwners:      make(map[string]string),
+		documents:     make(map[string]*domain.Document),
+		docFiles:      make(map[string]map[string]*domain.DocumentFile),
+		jobs:          make(map[string]*domain.DocumentProcessingJob),
+		capabilities:  make(map[string]*domain.JobCapability),
+		plans:         make(map[string]*domain.JobExecutionPlan),
+		approvals:     make(map[string][]*domain.JobApprovalRequest),
+		items:         make(map[string]map[string]*domain.Item),
+		sources:       make(map[string][]*domain.ItemSource),
+		chunks:        make(map[string][]*domain.DocumentChunk),
+		checkpoints:   make(map[string]map[string]domain.JobStageCheckpoint),
+		reservations:  make(map[string]*uploadReservation),
+		billingEvents: make(map[string]string),
 	}
 }
 
@@ -59,8 +73,13 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 		AccountID:            userID,
 		Name:                 "User " + userID,
 		Plan:                 "free",
+		StorageQuotaBytes:    5 * 1 << 30,
+		MaxFileSizeBytes:     100 << 20,
+		MaxUploadsPerFiveH:   20,
+		MaxUploadsPerWeek:    100,
 		StripeCustomerID:     "",
 		StripeSubscriptionID: "",
+		BillingStatus:        string(domain.BillingStatusFree),
 		CreatedAt:            time.Now().Format(time.RFC3339),
 	}
 	s.accounts[userID] = a
@@ -89,6 +108,124 @@ func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID strin
 	return account.AccountID == userID
 }
 
+func (s *Store) SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	account, ok := s.accounts[accountID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	account.StripeCustomerID = stripeCustomerID
+	return nil
+}
+
+func (s *Store) ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	account, ok := s.accounts[accountID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	applyMockBillingPlan(account, stripeCustomerID, stripeSubscriptionID, plan)
+	return nil
+}
+
+func (s *Store) ApplyBillingPlanByStripeCustomerID(ctx context.Context, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, account := range s.accounts {
+		if account.StripeCustomerID == stripeCustomerID {
+			applyMockBillingPlan(account, stripeCustomerID, stripeSubscriptionID, plan)
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
+func (s *Store) RecordBillingWebhookEvent(ctx context.Context, event *domain.ProviderWebhookEvent) (bool, error) {
+	if event == nil || event.EventID == "" {
+		return true, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := event.Provider + ":" + event.EventID
+	if _, ok := s.billingEvents[key]; ok {
+		return false, nil
+	}
+	s.billingEvents[key] = "received"
+	return true, nil
+}
+
+func (s *Store) MarkBillingWebhookEventProcessed(ctx context.Context, provider, eventID, status, errorMessage string) error {
+	if eventID == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.billingEvents[provider+":"+eventID] = status
+	return nil
+}
+
+func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error {
+	if event == nil || event.Plan == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var account *domain.Account
+	if event.AccountID != "" {
+		account = s.accounts[event.AccountID]
+	}
+	if account == nil && event.ExternalCustomerID != "" {
+		for _, candidate := range s.accounts {
+			if candidate.StripeCustomerID == event.ExternalCustomerID {
+				account = candidate
+				break
+			}
+		}
+	}
+	if account == nil {
+		return domain.ErrNotFound
+	}
+	applyMockBillingPlan(account, event.ExternalCustomerID, event.ExternalSubscriptionID, event.Plan)
+	account.BillingStatus = string(event.Status)
+	if account.BillingStatus == "" {
+		if event.Plan == domain.BillingPlanFree {
+			account.BillingStatus = string(domain.BillingStatusFree)
+		} else {
+			account.BillingStatus = string(domain.BillingStatusActive)
+		}
+	}
+	account.StripePriceID = event.ExternalPriceID
+	account.BillingCurrency = string(event.Currency)
+	account.BillingAmountMinor = event.AmountMinor
+	account.BillingInterval = string(event.Interval)
+	account.CurrentPeriodEnd = event.CurrentPeriodEnd
+	account.CancelAtPeriodEnd = event.CancelAtPeriodEnd
+	account.BillingUpdatedAt = time.Now().Format(time.RFC3339)
+	return nil
+}
+
+func applyMockBillingPlan(account *domain.Account, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) {
+	account.Plan = string(plan)
+	if stripeCustomerID != "" {
+		account.StripeCustomerID = stripeCustomerID
+	}
+	account.StripeSubscriptionID = stripeSubscriptionID
+	switch plan {
+	case domain.BillingPlanPro:
+		account.StorageQuotaBytes = 50 * 1 << 30
+		account.MaxFileSizeBytes = 500 << 20
+		account.MaxUploadsPerFiveH = 200
+		account.MaxUploadsPerWeek = 1000
+	default:
+		account.StorageQuotaBytes = 5 * 1 << 30
+		account.MaxFileSizeBytes = 100 << 20
+		account.MaxUploadsPerFiveH = 20
+		account.MaxUploadsPerWeek = 100
+	}
+}
+
 // WorkspaceRepository
 func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace {
 	s.mu.RLock()
@@ -100,7 +237,7 @@ func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*doma
 			owner = w.AccountID
 		}
 		if owner == userID {
-			res = append(res, w)
+			res = append(res, s.workspaceWithAccount(w))
 		}
 	}
 	return res
@@ -113,7 +250,7 @@ func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace,
 	if !ok {
 		return nil, domain.ErrNotFound
 	}
-	return w, nil
+	return s.workspaceWithAccount(w), nil
 }
 
 func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool {
@@ -134,15 +271,40 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	account := s.accounts[accountID]
 	w := &domain.Workspace{
 		WorkspaceID: "ws-" + name,
 		AccountID:   accountID,
 		Name:        name,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
+	if account != nil {
+		w.Plan = account.Plan
+		w.StorageUsedBytes = account.StorageUsedBytes
+		w.StorageQuotaBytes = account.StorageQuotaBytes
+		w.MaxFileSizeBytes = account.MaxFileSizeBytes
+		w.MaxUploadsPerFiveH = account.MaxUploadsPerFiveH
+		w.MaxUploadsPerWeek = account.MaxUploadsPerWeek
+	}
 	s.workspaces[w.WorkspaceID] = w
 	s.wsOwners[w.WorkspaceID] = accountID
 	return w
+}
+
+func (s *Store) workspaceWithAccount(w *domain.Workspace) *domain.Workspace {
+	if w == nil {
+		return nil
+	}
+	copied := *w
+	if account := s.accounts[w.AccountID]; account != nil {
+		copied.Plan = account.Plan
+		copied.StorageUsedBytes = account.StorageUsedBytes
+		copied.StorageQuotaBytes = account.StorageQuotaBytes
+		copied.MaxFileSizeBytes = account.MaxFileSizeBytes
+		copied.MaxUploadsPerFiveH = account.MaxUploadsPerFiveH
+		copied.MaxUploadsPerWeek = account.MaxUploadsPerWeek
+	}
+	return &copied
 }
 
 // DocumentRepository
@@ -183,9 +345,20 @@ func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspace
 	return &domain.JobPlanningSignals{DocumentID: documentID, WorkspaceID: workspaceID}, nil
 }
 
-func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string) {
+func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	ws, ok := s.workspaces[wsID]
+	if !ok {
+		return nil, "", domain.ErrNotFound
+	}
+	account, ok := s.accounts[ws.AccountID]
+	if !ok {
+		return nil, "", domain.ErrNotFound
+	}
+	if err := validateMockUpload(account, fileSize); err != nil {
+		return nil, "", err
+	}
 	d := &domain.Document{
 		DocumentID:  "doc-" + filename,
 		WorkspaceID: wsID,
@@ -196,7 +369,55 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 	s.documents[d.DocumentID] = d
-	return d, "http://mock-upload-url/" + d.DocumentID
+	s.reservations[d.DocumentID] = &uploadReservation{
+		AccountID:    account.AccountID,
+		WorkspaceID:  wsID,
+		DocumentID:   d.DocumentID,
+		ExpectedSize: fileSize,
+		Status:       "reserved",
+		ExpiresAt:    time.Now().Add(15 * time.Minute),
+	}
+	return d, "http://mock-upload-url/" + d.DocumentID, nil
+}
+
+func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	reservation, ok := s.reservations[documentID]
+	if !ok || reservation.Status == "failed" || time.Now().After(reservation.ExpiresAt) {
+		return domain.ErrUploadNotConfirmed
+	}
+	if reservation.Status == "confirmed" {
+		return nil
+	}
+	if reservation.ExpectedSize != actualSize {
+		reservation.Status = "failed"
+		return domain.ErrUploadSizeMismatch
+	}
+	account, ok := s.accounts[reservation.AccountID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	if account.StorageUsedBytes+actualSize > account.StorageQuotaBytes {
+		return domain.ErrStorageQuotaExceeded
+	}
+	account.StorageUsedBytes += actualSize
+	reservation.ActualSize = actualSize
+	reservation.Status = "confirmed"
+	return nil
+}
+
+func validateMockUpload(account *domain.Account, fileSize int64) error {
+	if fileSize <= 0 {
+		return domain.ErrUploadSizeMismatch
+	}
+	if account.MaxFileSizeBytes > 0 && fileSize > account.MaxFileSizeBytes {
+		return domain.ErrFileTooLarge
+	}
+	if account.StorageQuotaBytes > 0 && account.StorageUsedBytes+fileSize > account.StorageQuotaBytes {
+		return domain.ErrStorageQuotaExceeded
+	}
+	return nil
 }
 
 func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error) {

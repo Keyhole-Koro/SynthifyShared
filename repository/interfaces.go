@@ -14,6 +14,12 @@ type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
 	IsAccountAccessible(ctx context.Context, accountID, userID string) bool
+	SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error
+	ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error
+	ApplyBillingPlanByStripeCustomerID(ctx context.Context, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error
+	RecordBillingWebhookEvent(ctx context.Context, event *domain.ProviderWebhookEvent) (bool, error)
+	MarkBillingWebhookEventProcessed(ctx context.Context, provider, eventID, status, errorMessage string) error
+	ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error
 }
 
 type WorkspaceRepository interface {
@@ -28,7 +34,8 @@ type DocumentRepository interface {
 	GetDocument(ctx context.Context, id string) (*domain.Document, error)
 	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
 	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
-	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
+	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string, error)
+	ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error
 	CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error)
 	ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error)
 	GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error)

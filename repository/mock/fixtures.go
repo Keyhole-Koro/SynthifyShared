@@ -48,7 +48,7 @@ func CreateWorkspaceWithDocumentFixture(t testing.TB, ctx context.Context, store
 	t.Helper()
 
 	fixture := CreateUserWorkspaceFixture(t, ctx, store, userID)
-	doc, _ := store.CreateDocument(ctx, fixture.Workspace.WorkspaceID, userID, "f.pdf", "application/pdf", 100)
+	doc, _, _ := store.CreateDocument(ctx, fixture.Workspace.WorkspaceID, userID, "f.pdf", "application/pdf", 100)
 	require.NotNil(t, doc, "CreateDocument returned nil")
 	fixture.Document = doc
 	return fixture
@@ -58,7 +58,7 @@ func CreateWorkspaceWithProcessingJobFixture(t testing.TB, ctx context.Context, 
 	t.Helper()
 
 	fixture := CreateWorkspaceWithTreeFixture(t, ctx, store, userID)
-	doc, _ := store.CreateDocument(ctx, fixture.Workspace.WorkspaceID, userID, "f.pdf", "application/pdf", 100)
+	doc, _, _ := store.CreateDocument(ctx, fixture.Workspace.WorkspaceID, userID, "f.pdf", "application/pdf", 100)
 	require.NotNil(t, doc, "CreateDocument returned nil")
 	job := store.CreateProcessingJob(ctx, doc.DocumentID, fixture.Tree.TreeID, jobType)
 	require.NotNil(t, job, "CreateProcessingJob returned nil")

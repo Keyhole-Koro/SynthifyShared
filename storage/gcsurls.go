@@ -35,3 +35,8 @@ func BuildDocumentSourceURL(baseURL, workspaceID, documentID string) string {
 	root := strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s?alt=media", root, defaultBucket, workspaceID, documentID)
 }
+
+func BuildDocumentObjectMetadataURL(baseURL, workspaceID, documentID string) string {
+	root := strings.TrimRight(baseURL, "/")
+	return fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s", root, defaultBucket, workspaceID, documentID)
+}
